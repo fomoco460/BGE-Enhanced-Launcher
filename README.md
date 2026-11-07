@@ -38,8 +38,13 @@ The depth-based effects (MXAO and GI) need the game's depth buffer, which ReShad
 **Game settings**
 - The game's own options (water, shadows, glow, blur, mipmapping and others) are on the Graphics tab, so you don't need the old settings app.
 
+**Faster start-up**
+- **Fast intro:** the start-up intro is drawn by the game itself and can't be skipped, so the hook runs the game's clock 8× faster until the title menu appears. The intro sound may be choppy while it rushes through.
+- **Start on Load:** the title menu opens with **Load** highlighted instead of New Game.
+- Both are on the **Gameplay** tab.
+
 **Cheats**
-- On the **Cheats** tab, keep your **units** (up to 100,000) and **pearls** (up to 75) from dropping below a level you choose, so you can buy anything at shops and Mammago's garage.
+- On the **Gameplay** tab, keep your **units** (up to 100,000) and **pearls** (up to 75) from dropping below a level you choose, so you can buy anything at shops and Mammago's garage.
 - The hook finds the counters in the game's memory each time you play and checks they look right before changing anything. It waits a few seconds after a save loads before starting. The amounts are saved with your game as normal.
 
 **Darkroom: get the 13th MDisk**
