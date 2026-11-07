@@ -205,8 +205,14 @@ namespace BGELauncher
             L(p, "Texture filtering", 16, y); cbAniso = Combo(p, 170, y, 200, "Game default (trilinear)", "Anisotropic 2x", "Anisotropic 4x", "Anisotropic 8x", "Anisotropic 16x");
             y += 34;
             L(p, "Anti-aliasing (MSAA)", 16, y); cbMsaa = Combo(p, 170, y, 200, "Off", "2x MSAA", "4x MSAA", "8x MSAA");
-            Note(p, "Native renderer only. Turn it off if you use depth effects (MXAO/GI).", 380, y, 220, 34);
-            y += 40;
+            var msaaWarn = Note(p, "Not recommended: forced MSAA can cause black screens or broken graphics later in the game. Use SMAA (Vulkan) instead.", 380, y - 6, 220, 46);
+            msaaWarn.ForeColor = Color.FromArgb(240, 190, 110);
+            cbMsaa.SelectedIndexChanged += delegate
+            {
+                if (cbMsaa.Focused && cbMsaa.SelectedIndex > 0)
+                    SetStatus("Warning: forced MSAA is known to cause black screens or corrupted graphics at some points in BG&&E. If that happens, set it back to Off.");
+            };
+            y += 44;
             L(p, "Water quality", 16, y); cbWater = Combo(p, 170, y, 200, "Low", "Medium", "High");
             y += 34;
             L(p, "Shadow quality", 16, y); tbShadow = new TrackBar { Location = new Point(170, y - 4), Width = 200, Minimum = 0, Maximum = 255, TickFrequency = 32, LargeChange = 32 };

@@ -13,7 +13,7 @@ It's not a port or a decompilation. It works on your existing copy of the game.
 - **Widescreen (Hor+).** The game hard-codes a 4:3 picture and stretches it. This widens the view to your screen's real shape instead.
 - **Field of view** slider, and an option to keep the **HUD and menus at 4:3** so they aren't stretched.
 - **Any resolution**, fullscreen, windowed or **borderless**, with v-sync control.
-- **Anisotropic filtering** (up to 16x) and **MSAA** for the native renderer.
+- **Anisotropic filtering** (up to 16x), and optional **MSAA** for the native renderer. MSAA is off by default because forcing it can cause black screens or broken graphics in parts of the game; use SMAA on the Vulkan renderer instead.
 
 **Camera controls**
 - Flip the **controller** or **mouse** camera **left/right and up/down separately**. The in-game Invert option only flips both together.
