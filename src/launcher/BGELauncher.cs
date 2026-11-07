@@ -703,6 +703,12 @@ namespace BGELauncher
         bool ApplyAll()
         {
             if (GameDir == null) { MessageBox.Show(this, "Game folder not found."); return false; }
+            if (!File.Exists(System.IO.Path.Combine(Payload, @"hook\d3d9.dll")))
+            {
+                MessageBox.Show(this, "The launcher's \"payload\" folder is missing next to BGELauncher.exe:\n" + Payload +
+                    "\n\nRun BGELauncher.exe from the folder you extracted the release zip into, and keep the payload folder with it.", "BGE Launcher");
+                return false;
+            }
             if (Process.GetProcessesByName("BGE").Length > 0) { MessageBox.Show(this, "Close the game first."); return false; }
             try
             {
