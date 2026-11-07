@@ -321,8 +321,50 @@ static void fix_pp(IDirect3D9 *d3d, UINT adapter, D3DPRESENT_PARAMETERS *pp) {
     log_pp("new  pp", pp);
 }
 
+// Cheats: keep units / pearls topped up.
+// The Jade engine puts its game data in one 512 MB block it allocates at start-up. The block's address
+// changes every run, but the inventory counters always sit at the same offset inside it (checked across
+// restarts and different saves). Each counter is an isolated int32 with zeros on both sides; we check that
+// before every write so we never touch memory that doesn't look like the counter.
+#define POOL_MIN_SIZE   0x1F000000u
+#define OFF_UNITS       0x20C230u
+#define OFF_PEARLS      0x20CA44u
+static int g_keepUnits, g_keepPearls, g_cheatOk;
+static unsigned char *g_pool;
+static unsigned char *find_pool(void) {
+    MEMORY_BASIC_INFORMATION m; unsigned char *a = (unsigned char *)0x10000;
+    while ((ULONG_PTR)a < 0x7FFF0000 && VirtualQuery(a, &m, sizeof m)) {
+        if (m.State == MEM_COMMIT && m.Type == MEM_PRIVATE && m.Protect == PAGE_READWRITE && m.RegionSize >= POOL_MIN_SIZE)
+            return (unsigned char *)m.BaseAddress;
+        a = (unsigned char *)m.BaseAddress + m.RegionSize;
+    }
+    return NULL;
+}
+static int counter_looks_valid(unsigned char *base, unsigned off, int maxv) {
+    MEMORY_BASIC_INFORMATION m;
+    if (!VirtualQuery(base + off, &m, sizeof m) || m.State != MEM_COMMIT || m.Protect != PAGE_READWRITE) return 0;
+    volatile int *p = (volatile int *)(base + off);
+    return p[0] >= 0 && p[0] <= maxv && p[-1] == 0 && p[1] == 0 && p[2] == 0;
+}
+static void apply_cheats(void) {
+    if ((!g_keepUnits && !g_keepPearls) || g_frames % 30) return;  // twice a second is plenty
+    if (!g_pool) { g_pool = find_pool(); if (!g_pool) return; hlog("cheats: game data block at %p", g_pool); }
+    int ok = counter_looks_valid(g_pool, OFF_UNITS, 1000000) && counter_looks_valid(g_pool, OFF_PEARLS, 1000);
+    // Wait for ~5 s of sane values before the first write, so nothing is written while the game is still loading.
+    if (!ok) { g_cheatOk = 0; return; }
+    if (g_cheatOk < 10) {
+        if (++g_cheatOk == 10)
+            hlog("cheats: counters found (units %d, pearls %d)", *(int *)(g_pool + OFF_UNITS), *(int *)(g_pool + OFF_PEARLS));
+        return;
+    }
+    int *u = (int *)(g_pool + OFF_UNITS), *pe = (int *)(g_pool + OFF_PEARLS);
+    if (g_keepUnits && *u < g_keepUnits) *u = g_keepUnits;
+    if (g_keepPearls && *pe < g_keepPearls) *pe = g_keepPearls;
+}
+
 static HRESULT STDMETHODCALLTYPE h_Present(IDirect3DDevice9 *d, const RECT *a, const RECT *b, HWND w, const RGNDATA *r) {
     poll_hotkey();
+    apply_cheats();
     limit_frame();
     static LARGE_INTEGER t0;
     ++g_frames;
@@ -536,6 +578,8 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD r, LPVOID x) {
         hlog("bgehook loaded: fps=%d vsync=%d %dx%d win=%d aniso=%d msaa=%d chain='%s'",
              cfg.fps, cfg.vsync, cfg.width, cfg.height, cfg.windowed, cfg.aniso, cfg.msaa, cfg.chain);
         input_init();
+        g_keepUnits = ini_int("KeepUnits", 0); g_keepPearls = ini_int("KeepPearls", 0);
+        if (g_keepUnits || g_keepPearls) hlog("cheats: keep units >= %d, pearls >= %d", g_keepUnits, g_keepPearls);
     } else if (r == DLL_PROCESS_DETACH) {
         if (g_log) fclose(g_log);
     }

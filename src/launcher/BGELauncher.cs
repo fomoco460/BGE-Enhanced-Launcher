@@ -77,6 +77,9 @@ namespace BGELauncher
         RadioButton rbNative, rbDxvk;
         CheckBox chkRcas, chkSmaa, chkMxao, chkGi, chkDeband, chkDsoal;
         ComboBox cbSpeakers;
+        // Cheats
+        ComboBox cbKeepUnits, cbKeepPearls;
+        static readonly int[] UnitSteps = { 0, 1000, 5000, 9999 }, PearlSteps = { 0, 5, 20, 50 };
         TrackBar tbSharp; Label lblSharp;
         GroupBox gbReshade;
         Label lblImmerse;
@@ -114,6 +117,7 @@ namespace BGELauncher
             tabs.TabPages.Add(BuildGraphicsTab());
             tabs.TabPages.Add(BuildEnhanceTab());
             tabs.TabPages.Add(BuildDarkroomTab());
+            tabs.TabPages.Add(BuildCheatsTab());
             tabs.TabPages.Add(BuildToolsTab());
             Controls.Add(tabs);
 
@@ -311,6 +315,17 @@ namespace BGELauncher
             return p;
         }
 
+        TabPage BuildCheatsTab()
+        {
+            var p = Page("Cheats");
+            int y = 16;
+            Note(p, "Keeps your money and pearls topped up while you play. Whenever the amount drops below the level you pick, the game is set back to it, so you can buy anything at shops and Mammago's garage. The amounts are saved with your game as normal.", 16, y, 570, 50); y += 64;
+            L(p, "Units at least", 16, y); cbKeepUnits = Combo(p, 170, y, 200, "Off", "1,000", "5,000", "9,999"); y += 36;
+            L(p, "Pearls at least", 16, y); cbKeepPearls = Combo(p, 170, y, 200, "Off", "5", "20", "50"); y += 48;
+            Note(p, "Changes apply the next time you press PLAY. The cheat starts a few seconds after a save is loaded. Turning it off doesn't take away units or pearls you already have.", 16, y, 570, 40);
+            return p;
+        }
+
         TabPage BuildToolsTab()
         {
             var p = Page("Tools");
@@ -449,6 +464,8 @@ namespace BGELauncher
             chkGi.Checked = cfg.B("GI", true);
             chkDsoal.Checked = cfg.B("DSOAL", true);
             cbSpeakers.SelectedIndex = Math.Max(0, Math.Min(4, cfg.I("Speakers", 0)));
+            cbKeepUnits.SelectedIndex = Math.Max(0, Array.IndexOf(UnitSteps, cfg.I("KeepUnits", 0)));
+            cbKeepPearls.SelectedIndex = Math.Max(0, Array.IndexOf(PearlSteps, cfg.I("KeepPearls", 0)));
         }
 
         void UpdateEnables()
@@ -518,6 +535,7 @@ namespace BGELauncher
             cfg.Set("FlipStickX", chkFlipPadX.Checked); cfg.Set("FlipStickY", chkFlipPadY.Checked);
             cfg.Set("FlipMouseX", chkFlipMouseX.Checked); cfg.Set("FlipMouseY", chkFlipMouseY.Checked);
             cfg.Set("FOV", tbFov.Value);
+            cfg.Set("KeepUnits", UnitSteps[cbKeepUnits.SelectedIndex]); cfg.Set("KeepPearls", PearlSteps[cbKeepPearls.SelectedIndex]);
             cfg.Set("HUD", cbHud.SelectedIndex);
             cfg.Set("Aniso", new[] { 0, 2, 4, 8, 16 }[cbAniso.SelectedIndex]);
             cfg.Set("MSAA", new[] { 0, 2, 4, 8 }[cbMsaa.SelectedIndex]);
@@ -687,6 +705,7 @@ namespace BGELauncher
             h.Set("HUDMode", cbHud.SelectedIndex);
             h.Set("FlipStickX", chkFlipPadX.Checked); h.Set("FlipStickY", chkFlipPadY.Checked);
             h.Set("FlipMouseX", chkFlipMouseX.Checked); h.Set("FlipMouseY", chkFlipMouseY.Checked);
+            h.Set("KeepUnits", UnitSteps[cbKeepUnits.SelectedIndex]); h.Set("KeepPearls", PearlSteps[cbKeepPearls.SelectedIndex]);
             h.Set("Chain", renderer == "dxvk" ? "dxvk_d3d9.dll" : (reshade ? "ReShade32.dll" : ""));
             h.Set("ReShadeVulkan", renderer == "dxvk" && reshade);
             h.Set("Log", 1);
