@@ -19,6 +19,7 @@
 #include <mmsystem.h>
 
 static void parse_hotkey(const char *s);
+static int iat_patch(const char *dll, const char *fn, WORD ord, void *hook, void **orig);
 
 typedef IDirect3D9 *(WINAPI *PFN_Create9)(UINT);
 typedef HRESULT(WINAPI *PFN_Create9Ex)(UINT, IDirect3D9Ex **);
@@ -351,6 +352,65 @@ static volatile int *counter_at(unsigned char *base, unsigned off, int maxv) {
 }
 static int units_valid(void)  { volatile int *p = counter_at(g_pool, OFF_UNITS, 1000000); return p && p[1] == 0 && p[2] == 0; }
 static int pearls_valid(void) { volatile int *p = counter_at(g_pool, OFF_PEARLS, 100000);    return p && p[1] == 70 && p[2] == 4 && p[3] == 255; }
+// Main menu: the menu's state is a struct in the same block, {..., 10, 11, -1, menuId, cursor}. menuId 2 is
+// the title menu (New Game, Load, Options, Bonus, Quit); the cursor is the highlighted item.
+#define OFF_MENU_CURSOR 0xAD9AE4u
+static int g_startOnLoad, g_fastIntro, g_menuSeen;
+static int title_menu_cursor(void) {   // returns the cursor, or -1 if the title menu isn't showing
+    if (!g_pool) return -1;
+    MEMORY_BASIC_INFORMATION m;
+    if (!VirtualQuery(g_pool + OFF_MENU_CURSOR, &m, sizeof m) || m.State != MEM_COMMIT || m.Protect != PAGE_READWRITE) return -1;
+    volatile int *p = (volatile int *)(g_pool + OFF_MENU_CURSOR);
+    if (p[-1] != 2 || p[-2] != -1 || p[-3] != 11 || p[-4] != 10 || p[-5] != 9 || p[0] < 0 || p[0] > 4) return -1;
+    return p[0];
+}
+// Fast intro: the start-up intro is timed by the clock, so while it plays the game's own clock calls
+// (QueryPerformanceCounter and GetTickCount in BGE.exe's import table; nobody else's) run INTRO_SPEED times
+// faster. When the title menu appears the clock goes back to normal speed, carrying on from where it got to,
+// so it never jumps backwards.
+#define INTRO_SPEED 8
+typedef BOOL (WINAPI *PFN_QPC)(LARGE_INTEGER *);
+typedef DWORD (WINAPI *PFN_GTC)(void);
+static PFN_QPC o_QPC; static PFN_GTC o_GTC;
+static volatile LONG g_speedOn;
+static LONGLONG g_qpc0, g_qpcExtra; static DWORD g_tick0, g_tickExtra;
+static BOOL WINAPI h_QPC(LARGE_INTEGER *p) {
+    BOOL r = o_QPC(p);
+    if (r && p) p->QuadPart += g_speedOn ? (p->QuadPart - g_qpc0) * (INTRO_SPEED - 1) : g_qpcExtra;
+    return r;
+}
+static DWORD WINAPI h_GTC(void) {
+    DWORD t = o_GTC();
+    return t + (g_speedOn ? (t - g_tick0) * (INTRO_SPEED - 1) : g_tickExtra);
+}
+static void intro_speed_init(void) {
+    if (!g_fastIntro) return;
+    int a = iat_patch("KERNEL32.dll", "QueryPerformanceCounter", 0, (void *)h_QPC, (void **)&o_QPC);
+    int b = iat_patch("KERNEL32.dll", "GetTickCount", 0, (void *)h_GTC, (void **)&o_GTC);
+    if (a) { LARGE_INTEGER t; o_QPC(&t); g_qpc0 = t.QuadPart; }
+    if (b) g_tick0 = o_GTC();
+    g_speedOn = a || b;
+    hlog("intro: clock x%d %s (QPC %d, GetTickCount %d)", INTRO_SPEED, g_speedOn ? "on" : "NOT HOOKED", a, b);
+}
+static void intro_speed_off(void) {
+    if (!g_speedOn) return;
+    if (o_QPC) { LARGE_INTEGER t; o_QPC(&t); g_qpcExtra = (t.QuadPart - g_qpc0) * (INTRO_SPEED - 1); }
+    if (o_GTC) g_tickExtra = (o_GTC() - g_tick0) * (INTRO_SPEED - 1);
+    InterlockedExchange(&g_speedOn, 0);
+    hlog("intro: clock back to normal at frame %u", g_frames);
+}
+static void watch_title_menu(void) {
+    // Runs every frame until the title menu has been seen once, then stops.
+    if (g_menuSeen || (!g_startOnLoad && !g_fastIntro)) return;
+    if (!g_pool) { if (g_frames % 30) return; g_pool = find_pool(); if (!g_pool) return; hlog("menu: game data block at %p", g_pool); }
+    int c = title_menu_cursor();
+    if (c < 0) return;
+    g_menuSeen = g_frames;
+    intro_speed_off();
+    hlog("menu: title menu up at frame %u", g_frames);
+    if (g_startOnLoad && c == 0) { *(volatile int *)(g_pool + OFF_MENU_CURSOR) = 1; hlog("menu: cursor -> Load"); }
+}
+
 static void apply_cheats(void) {
     if ((!g_keepUnits && !g_keepPearls) || g_frames % 30) return;  // twice a second is plenty
     if (!g_pool) { g_pool = find_pool(); if (!g_pool) return; hlog("cheats: game data block at %p", g_pool); }
@@ -370,7 +430,9 @@ static void apply_cheats(void) {
 static HRESULT STDMETHODCALLTYPE h_Present(IDirect3DDevice9 *d, const RECT *a, const RECT *b, HWND w, const RGNDATA *r) {
     poll_hotkey();
     apply_cheats();
-    limit_frame();
+    watch_title_menu();
+    if (g_speedOn && g_frames >= 20000) intro_speed_off();   // safety net if the title menu is never recognised
+    if (!g_speedOn) limit_frame();
     static LARGE_INTEGER t0;
     ++g_frames;
     if (g_frames == 300) QueryPerformanceCounter(&t0);
@@ -583,6 +645,8 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD r, LPVOID x) {
         hlog("bgehook loaded: fps=%d vsync=%d %dx%d win=%d aniso=%d msaa=%d chain='%s'",
              cfg.fps, cfg.vsync, cfg.width, cfg.height, cfg.windowed, cfg.aniso, cfg.msaa, cfg.chain);
         input_init();
+        g_startOnLoad = ini_int("StartOnLoad", 0); g_fastIntro = ini_int("FastIntro", 0);
+        intro_speed_init();
         g_keepUnits = ini_int("KeepUnits", 0); g_keepPearls = ini_int("KeepPearls", 0);
         if (g_keepUnits || g_keepPearls) hlog("cheats: keep units >= %d, pearls >= %d", g_keepUnits, g_keepPearls);
     } else if (r == DLL_PROCESS_DETACH) {

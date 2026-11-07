@@ -79,6 +79,7 @@ namespace BGELauncher
         ComboBox cbSpeakers;
         // Cheats
         ComboBox cbKeepUnits, cbKeepPearls;
+        CheckBox chkStartOnLoad, chkFastIntro;
         static readonly int[] UnitSteps = { 0, 1000, 10000, 100000 }, PearlSteps = { 0, 20, 50, 75 };
         TrackBar tbSharp; Label lblSharp;
         GroupBox gbReshade;
@@ -317,8 +318,14 @@ namespace BGELauncher
 
         TabPage BuildCheatsTab()
         {
-            var p = Page("Cheats");
+            var p = Page("Gameplay");
             int y = 16;
+            L(p, "Start-up", 16, y); y += 26;
+            chkFastIntro = Check(p, "Skip the start-up intro (plays it at high speed)", 16, y,
+                "The intro is drawn by the game itself, so it can't be removed. Instead the frame cap is lifted until the title menu appears, which makes it play much faster.");
+            y += 28;
+            chkStartOnLoad = Check(p, "Title menu starts on Load instead of New Game", 16, y); y += 40;
+            L(p, "Cheats", 16, y); y += 26;
             Note(p, "Keeps your money and pearls topped up while you play. Whenever the amount drops below the level you pick, the game is set back to it, so you can buy anything at shops and Mammago's garage. The amounts are saved with your game as normal.", 16, y, 570, 50); y += 64;
             L(p, "Units at least", 16, y); cbKeepUnits = Combo(p, 170, y, 200, "Off", "1,000", "10,000", "100,000"); y += 36;
             L(p, "Pearls at least", 16, y); cbKeepPearls = Combo(p, 170, y, 200, "Off", "20", "50", "75"); y += 48;
@@ -466,6 +473,7 @@ namespace BGELauncher
             cbSpeakers.SelectedIndex = Math.Max(0, Math.Min(4, cfg.I("Speakers", 0)));
             cbKeepUnits.SelectedIndex = Math.Max(0, Array.IndexOf(UnitSteps, cfg.I("KeepUnits", 0)));
             cbKeepPearls.SelectedIndex = Math.Max(0, Array.IndexOf(PearlSteps, cfg.I("KeepPearls", 0)));
+            chkFastIntro.Checked = cfg.B("FastIntro", false); chkStartOnLoad.Checked = cfg.B("StartOnLoad", false);
         }
 
         void UpdateEnables()
@@ -535,6 +543,7 @@ namespace BGELauncher
             cfg.Set("FlipStickX", chkFlipPadX.Checked); cfg.Set("FlipStickY", chkFlipPadY.Checked);
             cfg.Set("FlipMouseX", chkFlipMouseX.Checked); cfg.Set("FlipMouseY", chkFlipMouseY.Checked);
             cfg.Set("FOV", tbFov.Value);
+            cfg.Set("FastIntro", chkFastIntro.Checked); cfg.Set("StartOnLoad", chkStartOnLoad.Checked);
             cfg.Set("KeepUnits", UnitSteps[cbKeepUnits.SelectedIndex]); cfg.Set("KeepPearls", PearlSteps[cbKeepPearls.SelectedIndex]);
             cfg.Set("HUD", cbHud.SelectedIndex);
             cfg.Set("Aniso", new[] { 0, 2, 4, 8, 16 }[cbAniso.SelectedIndex]);
@@ -705,6 +714,7 @@ namespace BGELauncher
             h.Set("HUDMode", cbHud.SelectedIndex);
             h.Set("FlipStickX", chkFlipPadX.Checked); h.Set("FlipStickY", chkFlipPadY.Checked);
             h.Set("FlipMouseX", chkFlipMouseX.Checked); h.Set("FlipMouseY", chkFlipMouseY.Checked);
+            h.Set("FastIntro", chkFastIntro.Checked); h.Set("StartOnLoad", chkStartOnLoad.Checked);
             h.Set("KeepUnits", UnitSteps[cbKeepUnits.SelectedIndex]); h.Set("KeepPearls", PearlSteps[cbKeepPearls.SelectedIndex]);
             h.Set("Chain", renderer == "dxvk" ? "dxvk_d3d9.dll" : (reshade ? "ReShade32.dll" : ""));
             h.Set("ReShadeVulkan", renderer == "dxvk" && reshade);
