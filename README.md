@@ -4,6 +4,8 @@ A launcher and add-on for the original PC release of **Beyond Good & Evil** (200
 
 It's not a port or a decompilation. It works on your existing copy of the game.
 
+> **Which version?** This is for the original 2003 game (`BGE.exe`), as sold on Ubisoft Connect, GOG and formerly Steam. It does **not** work with *Beyond Good & Evil – 20th Anniversary Edition* (2024), which is a separate remaster with its own engine and settings.
+
 ## Features
 
 **Display fixes**
@@ -15,6 +17,7 @@ It's not a port or a decompilation. It works on your existing copy of the game.
 
 **Camera controls**
 - Flip the **controller** or **mouse** camera **left/right and up/down separately**. The in-game Invert option only flips both together.
+- Controller support comes from the game itself. The Ubisoft Connect version supports Xbox-style (XInput) controllers. Older GOG and Steam copies may have no controller support; use a mapper such as Steam Input or reWASD with those.
 
 **Modern effects (ReShade on Vulkan)**
 - **AMD FSR 1 RCAS** sharpening.
