@@ -1,0 +1,5 @@
+# build output
+build/
+dist/
+# third-party binaries and shaders are downloaded, not committed (see README "Building")
+third_party/
