@@ -75,6 +75,13 @@ static void load_cfg(void) {
     // ReShade runs as a Vulkan layer on top of DXVK; its layer manifest is only enabled
     // when this variable is set, so no other Vulkan program picks it up.
     if (ini_int("ReShadeVulkan", 0)) SetEnvironmentVariableA("BGE_RESHADE_VK", "1");
+    if (ini_int("AudioDebug", 0)) { // DSOAL / OpenAL Soft logging (set in-process: Ubisoft Connect relaunches the game)
+        char lp[MAX_PATH];
+        SetEnvironmentVariableA("DSOAL_LOGLEVEL", "4"); // DSOAL adds 1: 4 = Debug, which is where EAX Set calls are logged
+        snprintf(lp, sizeof lp, "%s\\dsoal.log", g_dir); SetEnvironmentVariableA("DSOAL_LOGFILE", lp);
+        SetEnvironmentVariableA("ALSOFT_LOGLEVEL", "3");
+        snprintf(lp, sizeof lp, "%s\\alsoft.log", g_dir); SetEnvironmentVariableA("ALSOFT_LOGFILE", lp);
+    }
     GetPrivateProfileStringA("bgehook", "Chain", "", cfg.chain, sizeof cfg.chain, p);
 }
 

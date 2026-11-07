@@ -75,7 +75,8 @@ namespace BGELauncher
         CheckBox chkFlare, chkAfterFx, chkBlur, chkMip, chkHwVp;
         // Enhancements
         RadioButton rbNative, rbDxvk;
-        CheckBox chkRcas, chkSmaa, chkMxao, chkGi, chkDeband;
+        CheckBox chkRcas, chkSmaa, chkMxao, chkGi, chkDeband, chkDsoal;
+        ComboBox cbSpeakers;
         TrackBar tbSharp; Label lblSharp;
         GroupBox gbReshade;
         Label lblImmerse;
@@ -260,6 +261,14 @@ namespace BGELauncher
             dl.Click += delegate { if (GameDir != null) { SetStatus(DownloadImmerse() ? "iMMERSE shaders installed." : "iMMERSE download failed."); UpdateImmerseLabel(); } };
             gbI.Controls.Add(dl);
             p.Controls.Add(gbI);
+
+            var gbA = new GroupBox { Text = "3D sound and EAX reverb (DSOAL)", Location = new Point(10, 312), Size = new Size(588, 62), ForeColor = Color.WhiteSmoke };
+            chkDsoal = Check(gbA, "Restore EAX reverb and 3D positional sound", 12, 24,
+                "BG&E was made for hardware 3D audio with EAX, which modern Windows can't do. DSOAL rebuilds it in software with OpenAL Soft.");
+            L(gbA, "Output", 330, 24);
+            cbSpeakers = Combo(gbA, 384, 22, 190, "Windows default", "Headphones (3D HRTF)", "Stereo speakers", "5.1 surround", "7.1 surround");
+            gbA.Controls.Add(cbSpeakers);
+            p.Controls.Add(gbA);
             return p;
         }
 
@@ -435,6 +444,8 @@ namespace BGELauncher
             chkDeband.Checked = cfg.B("Deband", false);
             chkMxao.Checked = cfg.B("MXAO", true);
             chkGi.Checked = cfg.B("GI", true);
+            chkDsoal.Checked = cfg.B("DSOAL", true);
+            cbSpeakers.SelectedIndex = Math.Max(0, Math.Min(4, cfg.I("Speakers", 0)));
         }
 
         void UpdateEnables()
@@ -510,6 +521,7 @@ namespace BGELauncher
             cfg.Set("RCAS", chkRcas.Checked); cfg.Set("Sharpen", tbSharp.Value);
             cfg.Set("SMAA", chkSmaa.Checked); cfg.Set("Deband", chkDeband.Checked);
             cfg.Set("MXAO", chkMxao.Checked); cfg.Set("GI", chkGi.Checked);
+            cfg.Set("DSOAL", chkDsoal.Checked); cfg.Set("Speakers", cbSpeakers.SelectedIndex);
             cfg.Save("launcher");
         }
 
@@ -525,6 +537,14 @@ namespace BGELauncher
                 k.SetValue("Blurryness", chkBlur.Checked ? 1 : 0, RegistryValueKind.DWord);
                 k.SetValue("Mipmapping", chkMip.Checked ? 1 : 0, RegistryValueKind.DWord);
                 k.SetValue("HardwareVertexProcessing", chkHwVp.Checked ? 1 : 0, RegistryValueKind.DWord);
+            }
+            using (var k = Registry.CurrentUser.CreateSubKey(RegGame + @"\SettingsApplication.INI\Sound"))
+            {
+                // BGE.exe turns EAX on only when "Sound FX" != 1 and "Audio board FX Capable" == 2;
+                // it then loads eax.dll (ours, deployed with DSOAL) and must find it. With DSOAL off,
+                // put both back to 1 so the game never looks for eax.dll.
+                k.SetValue("Sound FX", chkDsoal.Checked ? 0 : 1, RegistryValueKind.DWord);
+                k.SetValue("Audio board FX Capable", chkDsoal.Checked ? 2 : 1, RegistryValueKind.DWord);
             }
         }
 
@@ -556,6 +576,46 @@ namespace BGELauncher
             }
             if (renderer == "dxvk")
                 CopyIfChanged(System.IO.Path.Combine(Payload, "dxvk_d3d9.dll"), System.IO.Path.Combine(GameDir, "dxvk_d3d9.dll"));
+            DeployAudio();
+        }
+
+        // DSOAL: a dsound.dll that implements DirectSound3D + EAX on top of OpenAL Soft.
+        void DeployAudio()
+        {
+            string src = System.IO.Path.Combine(Payload, "dsoal");
+            string dsound = System.IO.Path.Combine(GameDir, "dsound.dll");
+            if (chkDsoal.Checked)
+            {
+                CopyIfChanged(System.IO.Path.Combine(src, "dsound.dll"), dsound);
+                CopyIfChanged(System.IO.Path.Combine(src, "dsoal-aldrv.dll"), System.IO.Path.Combine(GameDir, "dsoal-aldrv.dll"));
+                CopyIfChanged(System.IO.Path.Combine(src, "eax.dll"), System.IO.Path.Combine(GameDir, "eax.dll"));
+                string nl = "\r\n";
+                string[] modes = {
+                    "",
+                    "channels=stereo" + nl + "stereo-mode=headphones" + nl + "stereo-encoding=hrtf" + nl,
+                    "channels=stereo" + nl + "stereo-mode=speakers" + nl,
+                    "channels=surround51" + nl,
+                    "channels=surround71" + nl };
+                File.WriteAllText(System.IO.Path.Combine(GameDir, "alsoft.ini"),
+                    "# written by BGE launcher (OpenAL Soft settings for DSOAL)" + nl + "[general]" + nl + modes[cbSpeakers.SelectedIndex]);
+            }
+            else RemoveAudio();
+        }
+
+        void RemoveAudio()
+        {
+            // only remove a dsound.dll that is ours, never someone else's audio wrapper (e.g. Creative ALchemy)
+            var mine = new FileInfo(System.IO.Path.Combine(Payload, @"dsoal\dsound.dll"));
+            var cur = new FileInfo(System.IO.Path.Combine(GameDir, "dsound.dll"));
+            if (!(cur.Exists && mine.Exists && cur.Length == mine.Length)) return;
+            foreach (var f in new[] { "dsound.dll", "dsoal-aldrv.dll", "eax.dll", "alsoft.ini", "dsoal.log", "alsoft.log", "eax.log" })
+            { string pth = System.IO.Path.Combine(GameDir, f); if (File.Exists(pth)) File.Delete(pth); }
+            // without eax.dll the game must not try EAX (it would call a null pointer)
+            using (var k = Registry.CurrentUser.CreateSubKey(RegGame + @"\SettingsApplication.INI\Sound"))
+            {
+                k.SetValue("Sound FX", 1, RegistryValueKind.DWord);
+                k.SetValue("Audio board FX Capable", 1, RegistryValueKind.DWord);
+            }
         }
 
         void RegisterVkLayer(bool on)
@@ -734,6 +794,7 @@ namespace BGELauncher
                 string p = System.IO.Path.Combine(GameDir, d);
                 if (Directory.Exists(p)) Directory.Delete(p, true);
             }
+            RemoveAudio();
             RegisterVkLayer(false);
             SetStatus(RestoreExe() + " Enhancements removed.");
         }

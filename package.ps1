@@ -5,7 +5,8 @@ $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 $name = "BGE-Enhanced-Launcher-v$Version"
 $out = Join-Path $root "dist\$name"
-$need = @("build\BGELauncher.exe", "build\d3d9.dll", "third_party\ReShade32.dll", "third_party\dxvk_d3d9.dll", "third_party\shaders\Shaders\ReShade.fxh")
+$need = @("build\BGELauncher.exe", "build\d3d9.dll", "third_party\ReShade32.dll", "third_party\dxvk_d3d9.dll", "third_party\shaders\Shaders\ReShade.fxh",
+          "third_party\dsoal\dsound.dll", "third_party\dsoal\dsoal-aldrv.dll", "build\eax.dll")
 foreach ($n in $need) { if (-not (Test-Path (Join-Path $root $n))) { throw "Missing $n" } }
 
 if (Test-Path $out) { Remove-Item $out -Recurse -Force }
@@ -16,6 +17,8 @@ Copy-Item "$root\build\BGELauncher.exe" $out
 Copy-Item "$root\build\d3d9.dll" "$payload\hook\"
 Copy-Item "$root\third_party\ReShade32.dll", "$root\third_party\dxvk_d3d9.dll" $payload
 Copy-Item "$root\layer\ReShade32_BGE.json" $payload
+Copy-Item "$root\third_party\dsoal" "$payload\dsoal" -Recurse
+Copy-Item "$root\build\eax.dll" "$payload\dsoal\"
 Copy-Item "$root\third_party\shaders\*" "$payload\reshade-shaders\" -Recurse
 Copy-Item "$root\shaders\BGE_FSR_RCAS.fx", "$root\shaders\ReShadeUI.fxh" "$payload\reshade-shaders\Shaders\"
 Copy-Item "$root\licenses\*" "$out\licenses\"

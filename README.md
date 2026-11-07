@@ -28,6 +28,12 @@ It's not a port or a decompilation. It works on your existing copy of the game.
 
 The depth-based effects (MXAO and GI) need the game's depth buffer, which ReShade can only read when the game runs through **DXVK** (Direct3D 9 → Vulkan). The launcher sets all of this up for you. Press **Home** in game for ReShade's menu.
 
+**3D sound and EAX reverb**
+- BG&E was made for sound cards with hardware 3D audio and **EAX 3.0** reverb. Modern Windows dropped both, so the game normally falls back to flat stereo.
+- The launcher brings them back with [DSOAL](https://github.com/kcat/dsoal), which rebuilds DirectSound 3D and EAX in software on top of OpenAL Soft. You get positional sound and the game's own room reverb in caves, halls and other spaces.
+- Choose the output on the Enhancements tab: Windows default, **headphones with 3D HRTF**, stereo speakers, 5.1 or 7.1.
+- The game only turns EAX on if it can load Creative's `eax.dll`, which can't be redistributed, so the launcher ships a tiny open replacement (`src/eax`) that hands the call to DSOAL. It also sets the game's own "EAX reverb" registry options. Turning the option off puts everything back.
+
 **Game settings**
 - The game's own options (water, shadows, glow, blur, mipmapping and others) are on the Graphics tab, so you don't need the old settings app.
 
@@ -64,8 +70,8 @@ Not included: ray tracing. RTX Remix was tried, but it doesn't work well enough 
 ## Building
 
 - **Launcher:** run `build.bat`. It uses the C# compiler included with Windows, so there's nothing to install. Output: `build\BGELauncher.exe`.
-- **Hook (`d3d9.dll`):** needs a 32-bit MinGW-w64 toolchain, for example [llvm-mingw](https://github.com/mstorsjo/llvm-mingw). Put it on PATH and run `sh src/bgehook/build.sh`. Output: `build\d3d9.dll`.
-- **Release zip:** fill `third_party\` as listed below, then run `powershell -File package.ps1 -Version 1.0.0`.
+- **Hook (`d3d9.dll`):** needs a 32-bit MinGW-w64 toolchain, for example [llvm-mingw](https://github.com/mstorsjo/llvm-mingw). Put it on PATH and run `sh src/bgehook/build.sh`. Output: `build\d3d9.dll` and `build\eax.dll`.
+- **Release zip:** fill `third_party\` as listed below, then run `powershell -File package.ps1 -Version 1.1.0`.
 
 `third_party\` (not committed):
 ```
@@ -75,6 +81,7 @@ shaders\Shaders\ReShade.fxh   crosire/reshade-shaders (slim branch)
 shaders\Shaders\Deband.fx     crosire/reshade-shaders (slim branch)
 shaders\Shaders\NGLighting.fx, NGLighting-Configs.fxh, NGLighting-Shader.fxh, NGLightingUI.fxh
 shaders\Textures\BlueNoise-64frames128x128.png    mj-ehsan/NiceGuy-Shaders
+dsoal\dsound.dll, dsoal\dsoal-aldrv.dll           DSOAL_r697.zip (github.com/kcat/dsoal releases), DSOAL\Win32
 ```
 
 ## Credits

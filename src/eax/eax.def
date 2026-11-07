@@ -1,0 +1,4 @@
+LIBRARY eax
+EXPORTS
+EAXDirectSoundCreate8=EAXDirectSoundCreate8@12
+EAXDirectSoundCreate=EAXDirectSoundCreate@12

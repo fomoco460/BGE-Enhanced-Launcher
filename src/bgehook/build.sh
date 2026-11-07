@@ -7,3 +7,6 @@ cd "$(dirname "$0")"
 mkdir -p ../../build
 $CC -O2 -shared -static -Wall -o ../../build/d3d9.dll bgehook.c bgehook.def -lwinmm -Wl,--enable-stdcall-fixup
 echo "built build/d3d9.dll"
+# eax.dll: open stand-in for Creative's EAX helper (hands EAXDirectSoundCreate8 to DSOAL's dsound.dll)
+$CC -O2 -shared -static -Wall -o ../../build/eax.dll ../eax/eaxshim.c ../eax/eax.def -Wl,--enable-stdcall-fixup
+echo "built build/eax.dll"
