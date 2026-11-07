@@ -350,7 +350,7 @@ static volatile int *counter_at(unsigned char *base, unsigned off, int maxv) {
     return p[0] >= 0 && p[0] <= maxv && p[-1] == 0 ? p : NULL;
 }
 static int units_valid(void)  { volatile int *p = counter_at(g_pool, OFF_UNITS, 1000000); return p && p[1] == 0 && p[2] == 0; }
-static int pearls_valid(void) { volatile int *p = counter_at(g_pool, OFF_PEARLS, 255);    return p && p[1] == 70 && p[2] == 4 && p[3] == 255; }
+static int pearls_valid(void) { volatile int *p = counter_at(g_pool, OFF_PEARLS, 100000);    return p && p[1] == 70 && p[2] == 4 && p[3] == 255; }
 static void apply_cheats(void) {
     if ((!g_keepUnits && !g_keepPearls) || g_frames % 30) return;  // twice a second is plenty
     if (!g_pool) { g_pool = find_pool(); if (!g_pool) return; hlog("cheats: game data block at %p", g_pool); }

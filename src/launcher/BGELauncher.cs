@@ -79,7 +79,7 @@ namespace BGELauncher
         ComboBox cbSpeakers;
         // Cheats
         ComboBox cbKeepUnits, cbKeepPearls;
-        static readonly int[] UnitSteps = { 0, 1000, 5000, 9999 }, PearlSteps = { 0, 5, 20, 50 };
+        static readonly int[] UnitSteps = { 0, 1000, 10000, 100000 }, PearlSteps = { 0, 20, 50, 75 };
         TrackBar tbSharp; Label lblSharp;
         GroupBox gbReshade;
         Label lblImmerse;
@@ -320,8 +320,8 @@ namespace BGELauncher
             var p = Page("Cheats");
             int y = 16;
             Note(p, "Keeps your money and pearls topped up while you play. Whenever the amount drops below the level you pick, the game is set back to it, so you can buy anything at shops and Mammago's garage. The amounts are saved with your game as normal.", 16, y, 570, 50); y += 64;
-            L(p, "Units at least", 16, y); cbKeepUnits = Combo(p, 170, y, 200, "Off", "1,000", "5,000", "9,999"); y += 36;
-            L(p, "Pearls at least", 16, y); cbKeepPearls = Combo(p, 170, y, 200, "Off", "5", "20", "50"); y += 48;
+            L(p, "Units at least", 16, y); cbKeepUnits = Combo(p, 170, y, 200, "Off", "1,000", "10,000", "100,000"); y += 36;
+            L(p, "Pearls at least", 16, y); cbKeepPearls = Combo(p, 170, y, 200, "Off", "20", "50", "75"); y += 48;
             Note(p, "Changes apply the next time you press PLAY. The cheat starts a few seconds after a save is loaded. Turning it off doesn't take away units or pearls you already have.", 16, y, 570, 40);
             return p;
         }

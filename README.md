@@ -39,7 +39,7 @@ The depth-based effects (MXAO and GI) need the game's depth buffer, which ReShad
 - The game's own options (water, shadows, glow, blur, mipmapping and others) are on the Graphics tab, so you don't need the old settings app.
 
 **Cheats**
-- On the **Cheats** tab, keep your **units** (up to 9,999) and **pearls** (up to 50) from dropping below a level you choose, so you can buy anything at shops and Mammago's garage.
+- On the **Cheats** tab, keep your **units** (up to 100,000) and **pearls** (up to 75) from dropping below a level you choose, so you can buy anything at shops and Mammago's garage.
 - The hook finds the counters in the game's memory each time you play and checks they look right before changing anything. It waits a few seconds after a save loads before starting. The amounts are saved with your game as normal.
 
 **Darkroom: get the 13th MDisk**
