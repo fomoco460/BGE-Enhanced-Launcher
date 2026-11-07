@@ -14,7 +14,11 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+#include <stdlib.h>
+#include <ctype.h>
 #include <mmsystem.h>
+
+static void parse_hotkey(const char *s);
 
 typedef IDirect3D9 *(WINAPI *PFN_Create9)(UINT);
 typedef HRESULT(WINAPI *PFN_Create9Ex)(UINT, IDirect3D9Ex **);
@@ -83,6 +87,7 @@ static void load_cfg(void) {
         snprintf(lp, sizeof lp, "%s\\alsoft.log", g_dir); SetEnvironmentVariableA("ALSOFT_LOGFILE", lp);
     }
     GetPrivateProfileStringA("bgehook", "Chain", "", cfg.chain, sizeof cfg.chain, p);
+    { char hk[64]; GetPrivateProfileStringA("bgehook", "ToggleKey", "Alt+Enter", hk, sizeof hk, p); parse_hotkey(hk); }
 }
 
 // ---------------- frame limiter ----------------
@@ -204,20 +209,84 @@ static void log_pp(const char *tag, D3DPRESENT_PARAMETERS *pp) {
          pp->MultiSampleType, pp->SwapEffect, pp->Windowed, pp->FullScreen_RefreshRateInHz, pp->PresentationInterval);
 }
 
-static void apply_window_mode(HWND h) {
-    if (!h || cfg.windowed < 1) return;
-    int sw = cfg.width ? cfg.width : GetSystemMetrics(SM_CXSCREEN);
-    int sh = cfg.height ? cfg.height : GetSystemMetrics(SM_CYSCREEN);
-    if (cfg.windowed == 2) {
+static int g_winMode = -1; // current window mode (1 windowed, 2 borderless); can be toggled by hotkey
+
+static void set_window_mode(HWND h, int mode) {
+    if (!h || mode < 1) return;
+    int scrW = GetSystemMetrics(SM_CXSCREEN), scrH = GetSystemMetrics(SM_CYSCREEN);
+    if (mode == 2) {
         SetWindowLongA(h, GWL_STYLE, WS_POPUP | WS_VISIBLE);
-        SetWindowPos(h, HWND_TOP, 0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN), SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+        SetWindowPos(h, HWND_TOP, 0, 0, scrW, scrH, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
     } else {
+        int sw = cfg.width ? cfg.width : scrW, sh = cfg.height ? cfg.height : scrH;
+        RECT wa; SystemParametersInfoA(SPI_GETWORKAREA, 0, &wa, 0);
+        int aw = wa.right - wa.left, ah = wa.bottom - wa.top;
+        if (sw > aw * 9 / 10 || sh > ah * 9 / 10) {
+            // the game resolution fills the screen: use a window at 75% of the work area, same shape
+            float k = 0.75f * ((float)aw / sw < (float)ah / sh ? (float)aw / sw : (float)ah / sh);
+            sw = (int)(sw * k); sh = (int)(sh * k);
+        }
         RECT r = {0, 0, sw, sh};
         LONG st = WS_OVERLAPPEDWINDOW & ~(WS_THICKFRAME | WS_MAXIMIZEBOX);
         SetWindowLongA(h, GWL_STYLE, st | WS_VISIBLE);
         AdjustWindowRect(&r, st, FALSE);
-        SetWindowPos(h, HWND_NOTOPMOST, 40, 40, r.right - r.left, r.bottom - r.top, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+        int ww = r.right - r.left, wh = r.bottom - r.top;
+        SetWindowPos(h, HWND_NOTOPMOST, wa.left + (aw - ww) / 2, wa.top + (ah - wh) / 2, ww, wh, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
     }
+    g_winMode = mode;
+}
+static void apply_window_mode(HWND h) {
+    if (cfg.windowed < 1) return;
+    set_window_mode(h, g_winMode >= 1 ? g_winMode : cfg.windowed);
+}
+
+// ---------------- window-mode hotkey ----------------
+// ToggleKey in bgehook.ini, e.g. "Alt+Enter", "F11", "Ctrl+F". Empty or "None" = off.
+static int g_hkVk, g_hkAlt, g_hkCtrl, g_hkShift, g_hkWasDown;
+static void parse_hotkey(const char *s) {
+    char buf[64]; int i = 0;
+    g_hkVk = 0;
+    if (!s || !*s || !_stricmp(s, "none")) return;
+    while (*s && i < 63) {
+        const char *e = strchr(s, '+'); size_t n = e ? (size_t)(e - s) : strlen(s);
+        if (n > 31) n = 31;
+        memcpy(buf, s, n); buf[n] = 0;
+        if (!_stricmp(buf, "alt")) g_hkAlt = 1;
+        else if (!_stricmp(buf, "ctrl")) g_hkCtrl = 1;
+        else if (!_stricmp(buf, "shift")) g_hkShift = 1;
+        else if (!_stricmp(buf, "enter") || !_stricmp(buf, "return")) g_hkVk = VK_RETURN;
+        else if ((buf[0] == 'F' || buf[0] == 'f') && atoi(buf + 1) >= 1 && atoi(buf + 1) <= 12) g_hkVk = VK_F1 + atoi(buf + 1) - 1;
+        else if (strlen(buf) == 1 && isalnum((unsigned char)buf[0])) g_hkVk = toupper((unsigned char)buf[0]);
+        if (!e) break;
+        s = e + 1; i++;
+    }
+}
+static int key_down(int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; }
+static void toggle_window_mode(void) {
+    int mode = (g_winMode >= 1 ? g_winMode : cfg.windowed) == 2 ? 1 : 2;
+    set_window_mode(g_hwnd, mode);
+    hlog("hotkey: window mode -> %s", mode == 2 ? "borderless" : "windowed");
+}
+static WNDPROC g_origWndProc;
+// The game reads the keyboard through DirectInput, so its window never sees our hotkey as a message:
+// poll it once per frame instead. "Held now or pressed since the last poll" (0x8001) also catches
+// very short presses that fall between two frames.
+static int key_hit(int vk) { return (GetAsyncKeyState(vk) & 0x8001) != 0; }
+static void poll_hotkey(void) {
+    if (!g_hkVk || cfg.windowed < 1 || !g_hwnd || GetForegroundWindow() != g_hwnd) { g_hkWasDown = 0; return; }
+    int down = key_hit(g_hkVk) && key_hit(VK_MENU) == g_hkAlt && key_hit(VK_CONTROL) == g_hkCtrl && key_hit(VK_SHIFT) == g_hkShift;
+    if (down && !g_hkWasDown) toggle_window_mode();
+    g_hkWasDown = down && key_down(g_hkVk); // re-arm as soon as the key is actually released
+}
+// Window subclass: stop a lone Alt press from opening the window's system menu in windowed mode.
+// That enters a modal menu loop which freezes the game until the next key press.
+static LRESULT CALLBACK hook_wndproc(HWND h, UINT m, WPARAM w, LPARAM l) {
+    if (m == WM_SYSCOMMAND && (w & 0xFFF0) == SC_KEYMENU) return 0;
+    return CallWindowProcA(g_origWndProc, h, m, w, l);
+}
+static void subclass_window(HWND h) {
+    if (!h || g_origWndProc || cfg.windowed < 1) return;
+    g_origWndProc = (WNDPROC)SetWindowLongPtrA(h, GWLP_WNDPROC, (LONG_PTR)hook_wndproc);
 }
 
 static void fix_pp(IDirect3D9 *d3d, UINT adapter, D3DPRESENT_PARAMETERS *pp) {
@@ -253,6 +322,7 @@ static void fix_pp(IDirect3D9 *d3d, UINT adapter, D3DPRESENT_PARAMETERS *pp) {
 }
 
 static HRESULT STDMETHODCALLTYPE h_Present(IDirect3DDevice9 *d, const RECT *a, const RECT *b, HWND w, const RGNDATA *r) {
+    poll_hotkey();
     limit_frame();
     static LARGE_INTEGER t0;
     ++g_frames;
@@ -288,6 +358,7 @@ static HRESULT STDMETHODCALLTYPE h_CreateDevice(IDirect3D9 *d3d, UINT ad, D3DDEV
     fix_pp(d3d, ad, pp);
     g_hwnd = pp->hDeviceWindow ? pp->hDeviceWindow : hw;
     if (pp->Windowed) apply_window_mode(g_hwnd);
+    subclass_window(g_hwnd);
     HRESULT hr = o_CreateDevice(d3d, ad, t, hw, flags, pp, out);
     hlog("CreateDevice -> 0x%08lx", hr);
     if (SUCCEEDED(hr) && out && *out) {

@@ -13,6 +13,7 @@ It's not a port or a decompilation. It works on your existing copy of the game.
 - **Widescreen (Hor+).** The game hard-codes a 4:3 picture and stretches it. This widens the view to your screen's real shape instead.
 - **Field of view** slider, and an option to keep the **HUD and menus at 4:3** so they aren't stretched.
 - **Any resolution**, fullscreen, windowed or **borderless**, with v-sync control.
+- **Switch between borderless and windowed while playing** with a hotkey (Alt+Enter by default; F11, Ctrl+Enter or Alt+F on the Display tab). In windowed mode a lone Alt press no longer freezes the game by opening the window menu.
 - **Anisotropic filtering** (up to 16x), and optional **MSAA** for the native renderer. MSAA is off by default because forcing it can cause black screens or broken graphics in parts of the game; use SMAA on the Vulkan renderer instead.
 
 **Camera controls**

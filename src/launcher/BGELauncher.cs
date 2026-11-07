@@ -66,7 +66,7 @@ namespace BGELauncher
         Ini cfg;
 
         // Display
-        ComboBox cbRes, cbWindow, cbVsync, cbFps, cbHud;
+        ComboBox cbRes, cbWindow, cbVsync, cbFps, cbHud, cbToggleKey;
         CheckBox chkWide, chkFlipPadX, chkFlipPadY, chkFlipMouseX, chkFlipMouseY;
         TrackBar tbFov; Label lblFov;
         // Game graphics
@@ -174,6 +174,8 @@ namespace BGELauncher
             foreach (var r in ScreenModes()) cbRes.Items.Add(r);
             y += 34;
             L(p, "Window mode", 16, y); cbWindow = Combo(p, 170, y, 200, "Fullscreen", "Windowed", "Borderless fullscreen");
+            L(p, "Switch key", 380, y); cbToggleKey = Combo(p, 450, y, 140, "Alt+Enter", "F11", "Ctrl+Enter", "Alt+F", "None");
+            new ToolTip().SetToolTip(cbToggleKey, "In game, switches between borderless fullscreen and a window. Works when Window mode is Windowed or Borderless.");
             y += 34;
             L(p, "Frame rate cap", 16, y); cbFps = Combo(p, 170, y, 200, "60 fps (recommended)", "30 fps", "120 fps (may break physics)", "144 fps (may break physics)", "Unlimited (breaks physics)");
             Note(p, "The Jade engine's physics and animation are tuned for 60 fps. Your 144 Hz display would otherwise run it too fast.", 380, y - 4, 220, 60);
@@ -414,6 +416,7 @@ namespace BGELauncher
             string res = cfg.S("Resolution", "Desktop resolution");
             cbRes.SelectedIndex = Math.Max(0, cbRes.Items.IndexOf(res));
             cbWindow.SelectedIndex = cfg.I("WindowMode", 2);
+            cbToggleKey.SelectedIndex = Math.Max(0, cbToggleKey.Items.IndexOf(cfg.S("ToggleKey", "Alt+Enter")));
             int fps = cfg.I("FPS", 60);
             cbFps.SelectedIndex = fps == 30 ? 1 : fps == 120 ? 2 : fps == 144 ? 3 : fps == 0 ? 4 : 0;
             cbVsync.SelectedIndex = cfg.I("VSyncIdx", 0);
@@ -508,6 +511,7 @@ namespace BGELauncher
             cfg.Set("GameDir", GameDir ?? "");
             cfg.Set("Resolution", cbRes.SelectedItem);
             cfg.Set("WindowMode", cbWindow.SelectedIndex);
+            cfg.Set("ToggleKey", cbToggleKey.SelectedItem);
             cfg.Set("FPS", new[] { 60, 30, 120, 144, 0 }[cbFps.SelectedIndex]);
             cfg.Set("VSyncIdx", cbVsync.SelectedIndex);
             cfg.Set("Widescreen", chkWide.Checked);
@@ -675,6 +679,7 @@ namespace BGELauncher
             else { w = Screen.PrimaryScreen.Bounds.Width; ht = Screen.PrimaryScreen.Bounds.Height; }
             h.Set("Width", w); h.Set("Height", ht);
             h.Set("WindowMode", cbWindow.SelectedIndex == 0 ? 0 : cbWindow.SelectedIndex == 1 ? 1 : 2);
+            h.Set("ToggleKey", cbToggleKey.SelectedItem);
             h.Set("Anisotropy", new[] { 0, 2, 4, 8, 16 }[cbAniso.SelectedIndex]);
             h.Set("MSAA", renderer == "native" ? new[] { 0, 2, 4, 8 }[cbMsaa.SelectedIndex] : 0);
             h.Set("WidescreenFix", chkWide.Checked);
