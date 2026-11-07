@@ -112,6 +112,7 @@ namespace BGELauncher
             tabs.TabPages.Add(BuildDisplayTab());
             tabs.TabPages.Add(BuildGraphicsTab());
             tabs.TabPages.Add(BuildEnhanceTab());
+            tabs.TabPages.Add(BuildDarkroomTab());
             tabs.TabPages.Add(BuildToolsTab());
             Controls.Add(tabs);
 
@@ -253,6 +254,43 @@ namespace BGELauncher
             dl.Click += delegate { if (GameDir != null) { SetStatus(DownloadImmerse() ? "iMMERSE shaders installed." : "iMMERSE download failed."); UpdateImmerseLabel(); } };
             gbI.Controls.Add(dl);
             p.Controls.Add(gbI);
+            return p;
+        }
+
+        TabPage BuildDarkroomTab()
+        {
+            var p = Page("Darkroom");
+            Note(p, "The 13th MDisk is in a locked cabinet on the first floor of the Akuda Bar, next to Francis's puck table. Its code used to come from Ubisoft's Darkroom website, which has shut down. Copy the 16-character Internet code shown in green on the game's Save/Load screen, then decode it here.", 16, 16, 570, 50);
+            L(p, "Internet code", 16, 80);
+            var tbCode = new TextBox { Location = new Point(130, 78), Width = 260, MaxLength = 32, Font = new Font("Consolas", 12f), CharacterCasing = CharacterCasing.Normal };
+            p.Controls.Add(tbCode);
+            var btn = MkButton("Decode", new Point(400, 76), 100);
+            p.Controls.Add(btn);
+            L(p, "Cabinet code", 16, 130);
+            var result = new TextBox { Location = new Point(130, 124), Width = 260, ReadOnly = true, Font = new Font("Consolas", 16f, FontStyle.Bold),
+                                       BackColor = Color.FromArgb(50, 58, 54), ForeColor = Color.FromArgb(120, 200, 160), BorderStyle = BorderStyle.FixedSingle };
+            p.Controls.Add(result);
+            var msg = Note(p, "", 16, 172, 570, 60);
+            Note(p, "Codes are case-sensitive. The game uses + \\ && / ? ! as some of the characters, and has no I, O, l or 0 - type them exactly as shown.", 16, 240, 570, 36);
+            Note(p, "Decoding method reverse-engineered by the BG&&E community (r/beyondgoodandevil, and 9214's daruma).", 16, 290, 570, 20);
+            EventHandler go = delegate
+            {
+                string code = tbCode.Text.Trim().Replace(" ", "");
+                string r = Darkroom.Decode(code);
+                if (r == null)
+                {
+                    result.Text = "";
+                    msg.Text = code.Length != 16 ? "The code must be exactly 16 characters (you entered " + code.Length + ")."
+                                                 : "That code contains a character the game never uses. Check for typos (it has no I, O, l or 0).";
+                    return;
+                }
+                result.Text = r;
+                bool odd = r.Any(c => char.IsLetterOrDigit(c) == false);
+                msg.Text = odd ? "This reply contains unusual characters, so the Internet code probably has a typo. Double-check it against the game."
+                               : "Enter this code on the Akuda Bar cabinet's keypad and press Validate.";
+            };
+            btn.Click += go;
+            tbCode.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; go(s, e); } };
             return p;
         }
 

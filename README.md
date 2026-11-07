@@ -28,6 +28,11 @@ The depth-based effects (MXAO and GI) need the game's depth buffer, which ReShad
 **Game settings**
 - The game's own options (water, shadows, glow, blur, mipmapping and others) are on the Graphics tab, so you don't need the old settings app.
 
+**Darkroom: get the 13th MDisk**
+- The last MDisk is in a locked cabinet on the first floor of the Akuda Bar, next to Francis's puck table. Its code came from Ubisoft's Darkroom website, which has shut down.
+- On the launcher's **Darkroom** tab, enter the 16-character Internet code from the game's Save/Load screen (shown in green). It gives you the cabinet code offline.
+- The decoding method was reverse-engineered by the BG&E community. It's checked against the 100 real save-game codes in [daruma](https://github.com/9214/daruma)'s test data.
+
 ## Install
 
 1. Download the latest release zip and extract it anywhere, for example `C:\Games\BGE-Enhanced`.

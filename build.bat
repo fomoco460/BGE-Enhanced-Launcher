@@ -8,4 +8,4 @@ if not exist "%~dp0build" mkdir "%~dp0build"
 "%CSC%" /nologo /target:winexe /optimize+ /platform:anycpu /out:"%~dp0build\BGELauncher.exe" ^
   /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll ^
   /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll ^
-  "%~dp0src\launcher\BGELauncher.cs"
+  "%~dp0src\launcher\*.cs"
