@@ -77,7 +77,7 @@ The first time you enable SMAA, MXAO or GI, the launcher asks to download the iM
 
 Tested with the **Ubisoft Connect** version on Windows 11 with an NVIDIA RTX 4060: 60 fps lock, borderless 1920×1080, the full ReShade stack in gameplay, and (since v1.3.0) the widened camera, no-bars and View height on a 3440×1440 ultrawide. The Steam and GOG versions are detected but **untested**. If they behave differently, please open an issue.
 
-Known issue: with **Blur / motion blur** on, the hovercraft's speed blur can break into "broken glass" wedges at high speed. It happens with v1.2.0's widescreen as well, so it isn't new in v1.3.0. Untick Blur on the Graphics tab if it bothers you.
+Known issue: on a 21:9 ultrawide (tested at 3440×1440), **Water quality: High** breaks the water into "broken glass" shards, most visibly at speed on the hovercraft. It's fine at 1920×1080. Use Low water quality on ultrawide screens.
 
 Not included: ray tracing. RTX Remix was tried, but it doesn't work well enough with this game yet to ship.
 
