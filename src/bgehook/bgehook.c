@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <math.h>
 #include <mmsystem.h>
 
 static void parse_hotkey(const char *s);
@@ -31,8 +32,14 @@ static char g_dir[MAX_PATH];
 static FILE *g_log;
 static unsigned g_frames;
 static UINT g_gameW, g_gameH, g_bbW, g_bbH;
-static int g_ws, g_hud;
+static int g_ws, g_hud, g_engineWs;
 static float g_fov = 1.0f, g_aspect = 16.0f / 9.0f;
+static volatile float g_fovK = 1.0f;   // engine widescreen: FOV factor
+// 1/tan(h'/2) and the game's own angle for recently widened cameras (menus such as the inventory use several per frame)
+#define WIDE_SLOTS 16
+static volatile float g_wideCot[WIDE_SLOTS], g_wideFov[WIDE_SLOTS]; static volatile LONG g_wideNext;
+static volatile float g_viewShift;   // ViewHeight: vertical lens shift of the main camera, fraction of half the screen
+static volatile int g_inTitle;       // title menu showing: its 3D logo uses a gameplay-like camera, so no view shift
 
 static struct {
     int fps;           // 0 = unlimited
@@ -69,6 +76,10 @@ static void load_cfg(void) {
     cfg.vsync = ini_int("VSync", -1);
     cfg.width = ini_int("Width", 0);
     cfg.height = ini_int("Height", 0);
+    if (cfg.width <= 0 || cfg.height <= 0) {
+        // 0 = the main screen's own resolution, read when the game starts (real pixels: see SetProcessDPIAware)
+        cfg.width = GetSystemMetrics(SM_CXSCREEN); cfg.height = GetSystemMetrics(SM_CYSCREEN);
+    }
     cfg.windowed = ini_int("WindowMode", -1);
     cfg.aniso = ini_int("Anisotropy", 16);
     cfg.msaa = ini_int("MSAA", 0);
@@ -171,7 +182,21 @@ static HRESULT STDMETHODCALLTYPE h_SetTransform(IDirect3DDevice9 *d, D3DTRANSFOR
         float r = n._11 != 0 ? -n._22 / n._11 : 0;
         if (n._34 == 1.0f && n._44 == 0.0f && r > 1.32f && r < 1.345f) {
             // the game hard-codes a 4:3 perspective: make it Hor+ for the real aspect, then apply FOV
-            if (g_ws) n._11 = -n._22 / g_aspect;
+            if (g_ws) {
+                // the main camera, already widened by the engine patch: put the height back to the 4:3 view
+                int wi = -1;
+                if (g_fovK > 1.0f)
+                    for (int i = 0; i < WIDE_SLOTS; i++)
+                        if (g_wideCot[i] > 0 && fabsf(n._11 - g_wideCot[i]) < 1e-3f * g_wideCot[i]) { wi = i; break; }
+                if (wi >= 0) {
+                    n._22 *= g_fovK;
+                    // lens shift: moves the picture without turning the camera. The engine culls with the
+                    // wider (pre-correction) frustum, so a shift of up to ~75% of half the screen stays covered.
+                    // gameplay cameras only (angle 1.2); the inventory/menu 3D scenes use 1.0 and must stay put
+                    if (g_wideFov[wi] >= 1.1f && !g_inTitle) n._32 += (n._22 < 0 ? g_viewShift : -g_viewShift);
+                }
+                n._11 = -n._22 / g_aspect;
+            }
             n._11 /= g_fov; n._22 /= g_fov;
             return o_SetTransform(d, t, &n);
         }
@@ -427,10 +452,94 @@ static void apply_cheats(void) {
     if (g_keepPearls && pearls_valid() && *pe < g_keepPearls) *pe = g_keepPearls;
 }
 
+// ---- Engine-side widescreen -------------------------------------------------------------------------
+// The SetTransform fix alone only widens the final picture: the engine still sizes its camera-relative
+// water patch and its visibility checks from the camera's own 4:3 view, so the extra width showed the
+// edge of the water and empty space. So the camera angle the game copies into its display block every
+// frame (0xB611F4) is widened for the real aspect: tan(h'/2) = tan(h/2) * aspect / (4/3). The engine
+// then draws and culls the full width. Its screen ratio stays 4:3 (changing it rescales the HUD), so
+// h_SetTransform restores the original vertical view for that camera's projection.
+// BGE.exe always loads at 0x400000; the patch is only applied if the original bytes are found.
+#define FOV_COPY_SITE 0x00B611F4u
+static const BYTE FOV_COPY_ORIG[12] = { 0x8B, 0x91, 0xAC, 0x00, 0x00, 0x00, 0x89, 0x90, 0xDC, 0x00, 0x00, 0x00 };
+
+float __cdecl bge_wide_fov(float f) {
+    if (g_fovK <= 1.0f || !(f > 0.05f && f < 3.0f)) return f;
+    // Menu scenes (the inventory uses exactly 1.0) place their 3D icons with the camera angle itself, so widening it
+    // pulls them off their slots. They have no water/culling problem: leave them to the projection-only fix.
+    if (f <= 1.001f) return f;
+    float w = 2.0f * atanf(tanf(f * 0.5f) * g_fovK);
+    if (w > 3.0f) w = 3.0f;
+    float c = 1.0f / tanf(w * 0.5f);
+    for (int i = 0; i < WIDE_SLOTS; i++) if (g_wideCot[i] == c) { g_wideFov[i] = f; return w; }
+    LONG i = InterlockedIncrement(&g_wideNext) % WIDE_SLOTS;
+    g_wideCot[i] = c; g_wideFov[i] = f;
+    return w;
+}
+// Replaces "mov edx,[ecx+0xAC]; mov [eax+0xDC],edx": eax = display block, ecx = active camera.
+__asm__(
+    ".text\n"
+    ".globl _bge_fov_stub\n"
+    "_bge_fov_stub:\n"
+    "    pushl %eax\n"
+    "    pushl %ecx\n"
+    "    pushl %edx\n"
+    "    pushl 0xAC(%ecx)\n"
+    "    call _bge_wide_fov\n"
+    "    addl $4, %esp\n"
+    "    popl %edx\n"
+    "    popl %ecx\n"
+    "    popl %eax\n"
+    "    fstps 0xDC(%eax)\n"
+    "    ret\n");
+void bge_fov_stub(void);
+
+static void engine_ws_init(void) {
+    if (!g_engineWs) return;
+    BYTE *site = (BYTE *)FOV_COPY_SITE;
+    MEMORY_BASIC_INFORMATION mi;
+    if (!VirtualQuery(site, &mi, sizeof mi) || mi.State != MEM_COMMIT || memcmp(site, FOV_COPY_ORIG, sizeof FOV_COPY_ORIG)) {
+        g_engineWs = 0; hlog("widescreen: camera code not recognised, using the projection-only fix"); return;
+    }
+    DWORD old;
+    if (!VirtualProtect(site, sizeof FOV_COPY_ORIG, PAGE_EXECUTE_READWRITE, &old)) { g_engineWs = 0; return; }
+    BYTE code[12]; memset(code, 0x90, sizeof code);
+    code[0] = 0xE8; *(INT32 *)(code + 1) = (INT32)((BYTE *)bge_fov_stub - (site + 5));
+    memcpy(site, code, sizeof code);
+    VirtualProtect(site, sizeof FOV_COPY_ORIG, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), site, sizeof FOV_COPY_ORIG);
+    hlog("widescreen: engine camera patched");
+}
+
+static void view_shift_load(void) {
+    // positive = look higher (horizon moves down the screen)
+    int v = ini_int("ViewHeight", 0); if (v < -50) v = -50; if (v > 50) v = 50;
+    g_viewShift = -v / 100.0f;
+}
+static void engine_ws_frame(void) {
+    g_fovK = (g_engineWs && g_aspect > 1.34f) ? g_aspect / (4.0f / 3.0f) : 1.0f;
+    if (g_viewShift != 0.0f) {
+        if (!g_pool && g_frames % 30 == 0) g_pool = find_pool();
+        int t = title_menu_cursor() >= 0;
+        if (t != g_inTitle) { g_inTitle = t; hlog("view: title menu %s at frame %u", t ? "showing" : "gone", g_frames); }
+    }
+    // re-read ViewHeight when bgehook.ini changes, so it can be tuned while playing
+    if (g_frames % 30 == 0) {
+        static FILETIME last; WIN32_FILE_ATTRIBUTE_DATA fa; char p[MAX_PATH];
+        snprintf(p, sizeof p, "%s\\bgehook.ini", g_dir);
+        if (GetFileAttributesExA(p, GetFileExInfoStandard, &fa) && CompareFileTime(&fa.ftLastWriteTime, &last)) {
+            int first = !last.dwLowDateTime && !last.dwHighDateTime;
+            last = fa.ftLastWriteTime; view_shift_load();
+            if (!first) hlog("view: height %d", ini_int("ViewHeight", 0));
+        }
+    }
+}
+
 static HRESULT STDMETHODCALLTYPE h_Present(IDirect3DDevice9 *d, const RECT *a, const RECT *b, HWND w, const RGNDATA *r) {
     poll_hotkey();
     apply_cheats();
     watch_title_menu();
+    engine_ws_frame();
     if (g_speedOn && g_frames >= 20000) intro_speed_off();   // safety net if the title menu is never recognised
     if (!g_speedOn) limit_frame();
     static LARGE_INTEGER t0;
@@ -636,6 +745,9 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD r, LPVOID x) {
         DisableThreadLibraryCalls(h);
         GetModuleFileNameA(h, g_dir, sizeof g_dir);
         char *s = strrchr(g_dir, '\\'); if (s) *s = 0;
+        // BGE predates display scaling. Without this, at 125% or 150% Windows reports a smaller "virtual" screen
+        // (2048x1152 for 2560x1440 at 125%) and stretches the game window up, blurring it.
+        SetProcessDPIAware();
         load_cfg();
         if (cfg.log) { char p[MAX_PATH]; snprintf(p, sizeof p, "%s\\bgehook.log", g_dir); g_log = fopen(p, "w"); }
         QueryPerformanceFrequency(&g_freq);
@@ -647,6 +759,8 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD r, LPVOID x) {
         input_init();
         g_startOnLoad = ini_int("StartOnLoad", 0); g_fastIntro = ini_int("FastIntro", 0);
         intro_speed_init();
+        g_engineWs = g_ws && ini_int("EngineWidescreen", 1);
+        engine_ws_init();
         g_keepUnits = ini_int("KeepUnits", 0); g_keepPearls = ini_int("KeepPearls", 0);
         if (g_keepUnits || g_keepPearls) hlog("cheats: keep units >= %d, pearls >= %d", g_keepUnits, g_keepPearls);
     } else if (r == DLL_PROCESS_DETACH) {

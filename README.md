@@ -10,9 +10,11 @@ It's not a port or a decompilation. It works on your existing copy of the game.
 
 **Display fixes**
 - **Locked 60 fps.** The Jade engine's physics and animation are tied to the frame rate, so a 120/144 Hz screen runs the game too fast. The built-in limiter holds a steady 60.
-- **Widescreen (Hor+).** The game hard-codes a 4:3 picture and stretches it. This widens the view to your screen's real shape instead.
+- **Widescreen (Hor+).** The game hard-codes a 4:3 picture and stretches it. This widens the view to your screen's real shape instead, for 16:9, 16:10 and 21:9 ultrawide. The game's own camera is widened too, so the water, scenery and characters reach the edges of a wide screen instead of stopping at the old 4:3 frame.
+- **No black bars.** The PC version letterboxes the whole game by default (a hidden `NoBands` setting). The launcher turns that off, so the picture fills the screen; cutscenes still get their cinema bars.
+- **View height.** The chase camera looks down at Jade, which leaves the horizon near the top of the screen. The View height slider raises the picture in gameplay without turning the camera. Menus and the title screen aren't affected.
 - **Field of view** slider, and an option to keep the **HUD and menus at 4:3** so they aren't stretched.
-- **Any resolution**, fullscreen, windowed or **borderless**, with v-sync control.
+- **Any resolution**, fullscreen, windowed or **borderless**, with v-sync control. "Desktop resolution" uses your main screen's full native size, and the game runs at real pixels even with Windows display scaling (125%, 150%), so it stays sharp.
 - **Switch between borderless and windowed while playing** with a hotkey (Alt+Enter by default; F11, Ctrl+Enter or Alt+F on the Display tab). In windowed mode a lone Alt press no longer freezes the game by opening the window menu.
 - **Anisotropic filtering** (up to 16x), and optional **MSAA** for the native renderer. MSAA is off by default because forcing it can cause black screens or broken graphics in parts of the game; use SMAA on the Vulkan renderer instead.
 
@@ -73,7 +75,7 @@ The first time you enable SMAA, MXAO or GI, the launcher asks to download the iM
 
 ## Status
 
-Tested with the **Ubisoft Connect** version on Windows 11 with an NVIDIA RTX 4060: 60 fps lock, widescreen, borderless 1920×1080, and the full ReShade stack in gameplay. The Steam and GOG versions are detected but **untested**. If they behave differently, please open an issue.
+Tested with the **Ubisoft Connect** version on Windows 11 with an NVIDIA RTX 4060: 60 fps lock, borderless 1920×1080, the full ReShade stack in gameplay, and (since v1.3.0) the widened camera, no-bars and View height on a 3440×1440 ultrawide. The Steam and GOG versions are detected but **untested**. If they behave differently, please open an issue.
 
 Not included: ray tracing. RTX Remix was tried, but it doesn't work well enough with this game yet to ship.
 
@@ -81,7 +83,7 @@ Not included: ray tracing. RTX Remix was tried, but it doesn't work well enough 
 
 - **Launcher:** run `build.bat`. It uses the C# compiler included with Windows, so there's nothing to install. Output: `build\BGELauncher.exe`.
 - **Hook (`d3d9.dll`):** needs a 32-bit MinGW-w64 toolchain, for example [llvm-mingw](https://github.com/mstorsjo/llvm-mingw). Put it on PATH and run `sh src/bgehook/build.sh`. Output: `build\d3d9.dll` and `build\eax.dll`.
-- **Release zip:** fill `third_party\` as listed below, then run `pwsh -File package.ps1 -Version 1.2.0` (PowerShell 7; Windows PowerShell 5 writes zip paths with backslashes).
+- **Release zip:** fill `third_party\` as listed below, then run `pwsh -File package.ps1 -Version 1.3.0` (PowerShell 7; Windows PowerShell 5 writes zip paths with backslashes).
 
 `third_party\` (not committed):
 ```

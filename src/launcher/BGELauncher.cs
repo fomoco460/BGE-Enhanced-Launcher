@@ -68,11 +68,11 @@ namespace BGELauncher
         // Display
         ComboBox cbRes, cbWindow, cbVsync, cbFps, cbHud, cbToggleKey;
         CheckBox chkWide, chkFlipPadX, chkFlipPadY, chkFlipMouseX, chkFlipMouseY;
-        TrackBar tbFov; Label lblFov;
+        TrackBar tbFov, tbViewH; Label lblFov, lblViewH;
         // Game graphics
         ComboBox cbWater, cbBuffers, cbAniso, cbMsaa;
         TrackBar tbShadow; Label lblShadow;
-        CheckBox chkFlare, chkAfterFx, chkBlur, chkMip, chkHwVp;
+        CheckBox chkFlare, chkAfterFx, chkBlur, chkMip, chkHwVp, chkNoBands;
         // Enhancements
         RadioButton rbNative, rbDxvk;
         CheckBox chkRcas, chkSmaa, chkMxao, chkGi, chkDeband, chkDsoal;
@@ -177,6 +177,9 @@ namespace BGELauncher
             int y = 16;
             L(p, "Resolution", 16, y); cbRes = Combo(p, 170, y, 200);
             foreach (var r in ScreenModes()) cbRes.Items.Add(r);
+            new ToolTip { AutoPopDelay = 20000 }.SetToolTip(cbRes, "Desktop resolution uses whichever screen is your main display when the game starts, at its full native size.\n" +
+                "Sizes marked (scaled) aren't a mode of your current main screen: in Borderless or Windowed the game draws at that size and it's scaled to fit.\n" +
+                "Fullscreen needs a size your screen supports, so use Borderless for scaled sizes.");
             y += 34;
             L(p, "Window mode", 16, y); cbWindow = Combo(p, 170, y, 200, "Fullscreen", "Windowed", "Borderless fullscreen");
             L(p, "Switch key", 380, y); cbToggleKey = Combo(p, 450, y, 140, "Alt+Enter", "F11", "Ctrl+Enter", "Alt+F", "None");
@@ -191,6 +194,12 @@ namespace BGELauncher
             y += 30;
             L(p, "Field of view", 16, y); tbFov = new TrackBar { Location = new Point(170, y - 4), Width = 200, Minimum = 80, Maximum = 130, TickFrequency = 10, SmallChange = 1, LargeChange = 5 };
             p.Controls.Add(tbFov); lblFov = L(p, "100%", 380, y); tbFov.ValueChanged += delegate { lblFov.Text = tbFov.Value + "%"; };
+            y += 40;
+            L(p, "View height", 16, y); tbViewH = new TrackBar { Location = new Point(170, y - 4), Width = 200, Minimum = -20, Maximum = 40, TickFrequency = 10, SmallChange = 1, LargeChange = 5 };
+            p.Controls.Add(tbViewH); lblViewH = L(p, "0", 380, y);
+            tbViewH.ValueChanged += delegate { lblViewH.Text = tbViewH.Value == 0 ? "0 (game default)" : (tbViewH.Value > 0 ? "+" : "") + tbViewH.Value; };
+            new ToolTip { AutoPopDelay = 20000 }.SetToolTip(tbViewH, "Shifts the gameplay picture up or down without turning the camera. The game's chase camera looks down at Jade;\n" +
+                "higher values bring the horizon towards the middle of the screen. Menus are not affected. Needs the widescreen fix on a wide screen.");
             y += 44;
             L(p, "HUD / menus", 16, y); cbHud = Combo(p, 170, y, 200, "Stretched to screen", "4:3 centred (correct shape)");
             y += 40;
@@ -235,6 +244,8 @@ namespace BGELauncher
             chkMip = Check(p, "Mipmapping", 200, y);
             y += 28;
             chkHwVp = Check(p, "Hardware vertex processing", 16, y, "Faster on modern GPUs.");
+            chkNoBands = Check(p, "No black bars (keep them for cutscenes)", 270, y,
+                "The game letterboxes the whole picture by default (hidden NoBands setting). With this on, the bars only appear in cutscenes.");
             Note(p, "These are the game's own settings (same as SettingsApplication.exe), stored in the registry.", 16, y + 40, 560, 20);
             return p;
         }
@@ -412,15 +423,46 @@ namespace BGELauncher
             return null;
         }
 
+        // Common gaming resolutions, offered even when the screen connected right now can't show them
+        // (for example a 21:9 monitor or a 4K TV you switch to later).
+        static readonly int[,] CommonRes = { { 1920, 1080 }, { 2560, 1080 }, { 2560, 1440 }, { 3440, 1440 }, { 3840, 1600 }, { 3840, 2160 }, { 5120, 1440 } };
+        const string Scaled = "  (scaled)";
+
+        static HashSet<Tuple<int, int>> Modes(string device)
+        {
+            var set = new HashSet<Tuple<int, int>>();
+            var dm = new DEVMODE(); dm.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE));
+            for (int i = 0; EnumDisplaySettings(device, i, ref dm); i++)
+                if (dm.dmPelsWidth >= 800 && dm.dmBitsPerPel >= 32) set.Add(Tuple.Create(dm.dmPelsWidth, dm.dmPelsHeight));
+            return set;
+        }
+        // Every mode of every connected screen, plus the common ones. Sizes the main screen can't show itself are
+        // marked "(scaled)": in borderless or windowed mode the game draws at that size and it's scaled to fit.
         static List<string> ScreenModes()
         {
-            var set = new SortedSet<Tuple<int, int>>();
-            var dm = new DEVMODE(); dm.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE));
-            for (int i = 0; EnumDisplaySettings(null, i, ref dm); i++)
-                if (dm.dmPelsWidth >= 800 && dm.dmBitsPerPel >= 32) set.Add(Tuple.Create(dm.dmPelsWidth, dm.dmPelsHeight));
-            var list = set.Reverse().Select(t => t.Item1 + " x " + t.Item2).ToList();
+            var main = Modes(Screen.PrimaryScreen.DeviceName);
+            var all = new HashSet<Tuple<int, int>>(main);
+            foreach (var sc in Screen.AllScreens) all.UnionWith(Modes(sc.DeviceName));
+            for (int i = 0; i < CommonRes.GetLength(0); i++) all.Add(Tuple.Create(CommonRes[i, 0], CommonRes[i, 1]));
+            var list = all.OrderByDescending(t => (long)t.Item1 * t.Item2).ThenByDescending(t => t.Item1)
+                          .Select(t => t.Item1 + " x " + t.Item2 + (main.Contains(t) ? "" : Scaled)).ToList();
             list.Insert(0, "Desktop resolution");
             return list;
+        }
+        static bool ParseRes(object item, out int w, out int h)
+        {
+            w = h = 0;
+            var m = System.Text.RegularExpressions.Regex.Match(item == null ? "" : item.ToString(), @"^(\d+) x (\d+)");
+            return m.Success && int.TryParse(m.Groups[1].Value, out w) && int.TryParse(m.Groups[2].Value, out h);
+        }
+        int FindRes(string saved)
+        {
+            int w, h, w2, h2;
+            if (!ParseRes(saved, out w, out h)) return 0;
+            for (int i = 1; i < cbRes.Items.Count; i++)
+                if (ParseRes(cbRes.Items[i], out w2, out h2) && w2 == w && h2 == h) return i;
+            cbRes.Items.Add(w + " x " + h + Scaled);   // saved on another screen: keep it selectable
+            return cbRes.Items.Count - 1;
         }
 
         static int Reg(string name, int def)
@@ -436,7 +478,7 @@ namespace BGELauncher
         {
             if (cfg.S("GameDir", "") != "" && File.Exists(cfg.S("GameDir", "") + "\\BGE.exe")) GameDir = cfg.S("GameDir", "");
             string res = cfg.S("Resolution", "Desktop resolution");
-            cbRes.SelectedIndex = Math.Max(0, cbRes.Items.IndexOf(res));
+            cbRes.SelectedIndex = FindRes(res);
             cbWindow.SelectedIndex = cfg.I("WindowMode", 2);
             cbToggleKey.SelectedIndex = Math.Max(0, cbToggleKey.Items.IndexOf(cfg.S("ToggleKey", "Alt+Enter")));
             int fps = cfg.I("FPS", 60);
@@ -446,6 +488,7 @@ namespace BGELauncher
             chkFlipPadX.Checked = cfg.B("FlipStickX", false); chkFlipPadY.Checked = cfg.B("FlipStickY", false);
             chkFlipMouseX.Checked = cfg.B("FlipMouseX", false); chkFlipMouseY.Checked = cfg.B("FlipMouseY", false);
             tbFov.Value = Math.Max(80, Math.Min(130, cfg.I("FOV", 100))); lblFov.Text = tbFov.Value + "%";
+            tbViewH.Value = Math.Max(-20, Math.Min(40, cfg.I("ViewHeight", 0))); lblViewH.Text = tbViewH.Value == 0 ? "0 (game default)" : (tbViewH.Value > 0 ? "+" : "") + tbViewH.Value;
             cbHud.SelectedIndex = cfg.I("HUD", 0);
 
             int an = cfg.I("Aniso", 16);
@@ -460,6 +503,7 @@ namespace BGELauncher
             chkBlur.Checked = Reg("Blurryness", 0) != 0;
             chkMip.Checked = Reg("Mipmapping", 1) != 0;
             chkHwVp.Checked = Reg("HardwareVertexProcessing", 0) != 0;
+            chkNoBands.Checked = Reg("NoBands", 1) != 0;
 
             string rend = cfg.S("Renderer", "dxvk");
             rbNative.Checked = rend == "native"; rbDxvk.Checked = rend != "native";
@@ -534,7 +578,7 @@ namespace BGELauncher
         void SaveLauncherCfg()
         {
             cfg.Set("GameDir", GameDir ?? "");
-            cfg.Set("Resolution", cbRes.SelectedItem);
+            { int rw, rh; cfg.Set("Resolution", ParseRes(cbRes.SelectedItem, out rw, out rh) ? rw + " x " + rh : "Desktop resolution"); }
             cfg.Set("WindowMode", cbWindow.SelectedIndex);
             cfg.Set("ToggleKey", cbToggleKey.SelectedItem);
             cfg.Set("FPS", new[] { 60, 30, 120, 144, 0 }[cbFps.SelectedIndex]);
@@ -543,6 +587,7 @@ namespace BGELauncher
             cfg.Set("FlipStickX", chkFlipPadX.Checked); cfg.Set("FlipStickY", chkFlipPadY.Checked);
             cfg.Set("FlipMouseX", chkFlipMouseX.Checked); cfg.Set("FlipMouseY", chkFlipMouseY.Checked);
             cfg.Set("FOV", tbFov.Value);
+            cfg.Set("ViewHeight", tbViewH.Value);
             cfg.Set("FastIntro", chkFastIntro.Checked); cfg.Set("StartOnLoad", chkStartOnLoad.Checked);
             cfg.Set("KeepUnits", UnitSteps[cbKeepUnits.SelectedIndex]); cfg.Set("KeepPearls", PearlSteps[cbKeepPearls.SelectedIndex]);
             cfg.Set("HUD", cbHud.SelectedIndex);
@@ -568,6 +613,7 @@ namespace BGELauncher
                 k.SetValue("Blurryness", chkBlur.Checked ? 1 : 0, RegistryValueKind.DWord);
                 k.SetValue("Mipmapping", chkMip.Checked ? 1 : 0, RegistryValueKind.DWord);
                 k.SetValue("HardwareVertexProcessing", chkHwVp.Checked ? 1 : 0, RegistryValueKind.DWord);
+                k.SetValue("NoBands", chkNoBands.Checked ? 1 : 0, RegistryValueKind.DWord);
             }
             using (var k = Registry.CurrentUser.CreateSubKey(RegGame + @"\SettingsApplication.INI\Sound"))
             {
@@ -697,13 +743,10 @@ namespace BGELauncher
             var h = new Ini(System.IO.Path.Combine(GameDir, "bgehook.ini"));
             h.Set("FPSLimit", new[] { 60, 30, 120, 144, 0 }[cbFps.SelectedIndex]);
             h.Set("VSync", new[] { 0, 1, -1 }[cbVsync.SelectedIndex]);
-            int w = 0, ht = 0;
-            if (cbRes.SelectedIndex > 0)
-            {
-                var parts = cbRes.SelectedItem.ToString().Split('x');
-                w = int.Parse(parts[0].Trim()); ht = int.Parse(parts[1].Trim());
-            }
-            else { w = Screen.PrimaryScreen.Bounds.Width; ht = Screen.PrimaryScreen.Bounds.Height; }
+            // "Desktop resolution" is written as 0 x 0: the hook reads the main screen's real size when the game
+            // starts, so it follows you if you switch screens (and isn't shrunk by Windows display scaling).
+            int w, ht;
+            if (!ParseRes(cbRes.SelectedItem, out w, out ht)) { w = 0; ht = 0; }
             h.Set("Width", w); h.Set("Height", ht);
             h.Set("WindowMode", cbWindow.SelectedIndex == 0 ? 0 : cbWindow.SelectedIndex == 1 ? 1 : 2);
             h.Set("ToggleKey", cbToggleKey.SelectedItem);
@@ -711,6 +754,7 @@ namespace BGELauncher
             h.Set("MSAA", renderer == "native" ? new[] { 0, 2, 4, 8 }[cbMsaa.SelectedIndex] : 0);
             h.Set("WidescreenFix", chkWide.Checked);
             h.Set("FOVPercent", tbFov.Value);
+            h.Set("ViewHeight", tbViewH.Value);
             h.Set("HUDMode", cbHud.SelectedIndex);
             h.Set("FlipStickX", chkFlipPadX.Checked); h.Set("FlipStickY", chkFlipPadY.Checked);
             h.Set("FlipMouseX", chkFlipMouseX.Checked); h.Set("FlipMouseY", chkFlipMouseY.Checked);
