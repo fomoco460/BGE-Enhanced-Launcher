@@ -77,7 +77,7 @@ The first time you enable SMAA, MXAO or GI, the launcher asks to download the iM
 
 Tested with the **Ubisoft Connect** version on Windows 11 with an NVIDIA RTX 4060: 60 fps lock, borderless 1920×1080, the full ReShade stack in gameplay, and (since v1.3.0) the widened camera, no-bars and View height on a 3440×1440 ultrawide. The Steam and GOG versions are detected but **untested**. If they behave differently, please open an issue.
 
-Known issue: on a 21:9 ultrawide (tested at 3440×1440), **Water quality: High** breaks the water into "broken glass" shards, most visibly at speed on the hovercraft. It's fine at 1920×1080. Use Low water quality on ultrawide screens.
+Known issue: with **GI** on and **Water quality: High**, GI smears pale "broken glass" streaks across the water towards the horizon, most visibly at speed on the hovercraft and worst on ultrawide screens. GI builds its lighting up over several frames from estimated motion, and High water's moving reflections fool that estimate. The launcher warns you when both are on: use Low water quality, or turn GI off. (High water's own reflections are now lined up correctly on wide screens.)
 
 Not included: ray tracing. RTX Remix was tried, but it doesn't work well enough with this game yet to ship.
 
@@ -85,7 +85,7 @@ Not included: ray tracing. RTX Remix was tried, but it doesn't work well enough 
 
 - **Launcher:** run `build.bat`. It uses the C# compiler included with Windows, so there's nothing to install. Output: `build\BGELauncher.exe`.
 - **Hook (`d3d9.dll`):** needs a 32-bit MinGW-w64 toolchain, for example [llvm-mingw](https://github.com/mstorsjo/llvm-mingw). Put it on PATH and run `sh src/bgehook/build.sh`. Output: `build\d3d9.dll` and `build\eax.dll`.
-- **Release zip:** fill `third_party\` as listed below, then run `pwsh -File package.ps1 -Version 1.3.0` (PowerShell 7; Windows PowerShell 5 writes zip paths with backslashes).
+- **Release zip:** fill `third_party\` as listed below (the repo's `shaders\NGLighting-Configs.fxh` replaces the downloaded one: it lets the launcher pass in the game's field of view), then run `pwsh -File package.ps1 -Version 1.3.0` (PowerShell 7; Windows PowerShell 5 writes zip paths with backslashes).
 
 `third_party\` (not committed):
 ```

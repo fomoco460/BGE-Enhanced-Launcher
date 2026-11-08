@@ -176,6 +176,38 @@ static HRESULT STDMETHODCALLTYPE h_EnumModes(IDirect3D9 *d, UINT a, D3DFORMAT f,
     return o_EnumModes(d, a, f, i, m);
 }
 
+// High water quality draws the scene a second time into a small screen copy, then maps that copy onto the water
+// with a texture matrix built from the game's own 4:3 projection (0.5 * its scale). The copy is drawn with our
+// adjusted projection, so the matrix must get the same adjustment, or the reflections land in the wrong place
+// (worse the wider the screen). Remember how each adjusted projection differs from the game's.
+#define TM_SLOTS 8
+static struct { float g11, sx, sy, dx, dy; } g_tm[TM_SLOTS];
+static LONG g_tmNext;
+static int g_tmLogged;
+static void tm_remember(const D3DMATRIX *game, const D3DMATRIX *mod) {
+    if (game->_11 == 0 || game->_22 == 0) return;
+    float g11 = game->_11, sx = mod->_11 / game->_11, sy = mod->_22 / game->_22;
+    float dx = mod->_31 - game->_31, dy = mod->_32 - game->_32;
+    for (int i = 0; i < TM_SLOTS; i++)
+        if (g_tm[i].g11 == g11) { g_tm[i].sx = sx; g_tm[i].sy = sy; g_tm[i].dx = dx; g_tm[i].dy = dy; return; }
+    int i = (int)(InterlockedIncrement(&g_tmNext) % TM_SLOTS);
+    g_tm[i].g11 = g11; g_tm[i].sx = sx; g_tm[i].sy = sy; g_tm[i].dx = dx; g_tm[i].dy = dy;
+}
+static int tm_fix(D3DMATRIX *n) {
+    // a projective screen mapping: u = 0.5*x_ndc + 0.5, v = 0.5 - 0.5*y_ndc
+    if (n->_14 != 0 || n->_24 != 0 || n->_34 != 1.0f || n->_11 <= 0 || n->_12 != 0 || n->_21 != 0) return 0;
+    for (int i = 0; i < TM_SLOTS; i++) {
+        float g = g_tm[i].g11;
+        if (g > 0 && fabsf(2.0f * n->_11 - g) < 2e-3f * g) {
+            if (g_tm[i].sx == 1.0f && g_tm[i].sy == 1.0f && g_tm[i].dx == 0 && g_tm[i].dy == 0) return 0;
+            n->_11 *= g_tm[i].sx; n->_22 *= g_tm[i].sy;
+            n->_31 += 0.5f * g_tm[i].dx; n->_32 -= 0.5f * g_tm[i].dy;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static HRESULT STDMETHODCALLTYPE h_SetTransform(IDirect3DDevice9 *d, D3DTRANSFORMSTATETYPE t, const D3DMATRIX *m) {
     if (t == D3DTS_PROJECTION && m && (g_ws || g_hud || g_fov != 1.0f)) {
         D3DMATRIX n = *m;
@@ -198,11 +230,19 @@ static HRESULT STDMETHODCALLTYPE h_SetTransform(IDirect3DDevice9 *d, D3DTRANSFOR
                 n._11 = -n._22 / g_aspect;
             }
             n._11 /= g_fov; n._22 /= g_fov;
+            tm_remember(m, &n);
             return o_SetTransform(d, t, &n);
         }
         if (g_hud == 1 && n._34 == 0.0f && n._44 == 1.0f && n._11 > 0 && n._11 < 0.01f) {
             float k = (4.0f / 3.0f) / g_aspect; // pillarbox the 2D layer to 4:3
             if (k < 1.0f) { n._11 *= k; n._41 *= k; return o_SetTransform(d, t, &n); }
+        }
+    }
+    if (t >= D3DTS_TEXTURE0 && t <= D3DTS_TEXTURE7 && m && (g_ws || g_fov != 1.0f)) {
+        D3DMATRIX n = *m;
+        if (tm_fix(&n)) {
+            if (!g_tmLogged) { g_tmLogged = 1; hlog("water: screen-copy texture matrix adjusted (%.4f -> %.4f)", m->_22, n._22); }
+            return o_SetTransform(d, t, &n);
         }
     }
     return o_SetTransform(d, t, m);

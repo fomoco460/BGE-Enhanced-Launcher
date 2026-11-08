@@ -20,7 +20,7 @@ Copy-Item "$root\layer\ReShade32_BGE.json" $payload
 Copy-Item "$root\third_party\dsoal" "$payload\dsoal" -Recurse
 Copy-Item "$root\build\eax.dll" "$payload\dsoal\"
 Copy-Item "$root\third_party\shaders\*" "$payload\reshade-shaders\" -Recurse
-Copy-Item "$root\shaders\BGE_FSR_RCAS.fx", "$root\shaders\ReShadeUI.fxh" "$payload\reshade-shaders\Shaders\"
+Copy-Item "$root\shaders\BGE_FSR_RCAS.fx", "$root\shaders\ReShadeUI.fxh", "$root\shaders\NGLighting-Configs.fxh" "$payload\reshade-shaders\Shaders\"
 Copy-Item "$root\licenses\*" "$out\licenses\"
 Copy-Item "$root\LICENSE" "$out\licenses\BGE-Enhanced-Launcher-LICENSE.txt"
 Copy-Item "$root\THIRD-PARTY-NOTICES.md", "$root\README.md" $out

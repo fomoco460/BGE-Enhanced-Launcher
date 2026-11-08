@@ -76,6 +76,7 @@ namespace BGELauncher
         // Enhancements
         RadioButton rbNative, rbDxvk;
         CheckBox chkRcas, chkSmaa, chkMxao, chkGi, chkDeband, chkDsoal;
+        Label lblGiNote, lblWaterGi;   // GI + High water warning
         ComboBox cbSpeakers;
         // Cheats
         ComboBox cbKeepUnits, cbKeepPearls;
@@ -231,6 +232,7 @@ namespace BGELauncher
             };
             y += 44;
             L(p, "Water quality", 16, y); cbWater = Combo(p, 170, y, 200, "Low", "Medium", "High");
+            lblWaterGi = Note(p, "", 380, y - 4, 220, 32);
             y += 34;
             L(p, "Shadow quality", 16, y); tbShadow = new TrackBar { Location = new Point(170, y - 4), Width = 200, Minimum = 0, Maximum = 255, TickFrequency = 32, LargeChange = 32 };
             p.Controls.Add(tbShadow); lblShadow = L(p, "128", 380, y); tbShadow.ValueChanged += delegate { lblShadow.Text = tbShadow.Value.ToString(); };
@@ -269,7 +271,9 @@ namespace BGELauncher
             chkDeband = Check(gbReshade, "Deband (smooth sky gradients)", 300, 50);
             chkMxao = Check(gbReshade, "MXAO ambient occlusion", 12, 76);
             chkGi = Check(gbReshade, "Global illumination - NiceGuy SSGI", 300, 76);
-            Note(gbReshade, "SMAA, MXAO and GI need the Vulkan renderer. GI is screen-space (ray marched in the depth buffer).", 12, 100, 560, 20);
+            lblGiNote = Note(gbReshade, "", 12, 100, 570, 20);
+            chkGi.CheckedChanged += delegate { UpdateEnables(); };
+            cbWater.SelectedIndexChanged += delegate { UpdateEnables(); };
             p.Controls.Add(gbReshade);
 
             var gbI = new GroupBox { Text = "iMMERSE shaders (SMAA, MXAO, and motion vectors for GI)", Location = new Point(10, 210), Size = new Size(588, 96), ForeColor = Color.WhiteSmoke };
@@ -529,6 +533,22 @@ namespace BGELauncher
             chkSmaa.Text = "SMAA anti-aliasing" + (vk ? "" : " (Vulkan only)");
             chkMxao.Text = "MXAO ambient occlusion" + (vk ? "" : " (Vulkan only)");
             chkGi.Text = "Global illumination - NiceGuy SSGI" + (vk ? "" : " (Vulkan only)");
+            // NiceGuy GI builds its lighting up over several frames using estimated motion. High water's moving
+            // reflections fool that estimate, so on the water it smears streaks towards the horizon.
+            bool giWater = vk && chkGi.Checked && cbWater.SelectedIndex == 2;
+            var warn = Color.FromArgb(240, 190, 90); var note = Color.FromArgb(185, 196, 190);
+            if (lblGiNote != null)
+            {
+                lblGiNote.Text = giWater
+                    ? "GI streaks across the water with Water quality High. Use Low water, or turn GI off."
+                    : "SMAA, MXAO and GI need the Vulkan renderer. GI is screen-space (ray marched in the depth buffer).";
+                lblGiNote.ForeColor = giWater ? warn : note;
+            }
+            if (lblWaterGi != null)
+            {
+                lblWaterGi.Text = giWater ? "With GI on (Enhancements tab), High water shows streaks." : "";
+                lblWaterGi.ForeColor = warn;
+            }
             UpdateImmerseLabel();
         }
 
@@ -726,8 +746,12 @@ namespace BGELauncher
             string list = string.Join(",", techs);
             // sharpness slider: 100% -> 0 stops (max), 0% -> 2 stops (subtle)
             double stops = 2.0 - tbSharp.Value / 10.0;
+            // NiceGuy GI rebuilds 3D positions with a fixed FOV (50); give it the game's real one. The hook keeps the
+            // game's vertical view (projection _22 = 1.9489, so tan(v/2) = 0.5131) and scales it by the FOV slider.
+            // The shader wants degrees whose radian value is tan(v/2): 0.5131 rad = 29.40 degrees.
+            double nglFov = 29.40 * tbFov.Value / 100.0;
             File.WriteAllText(System.IO.Path.Combine(GameDir, "BGE-ReShadePreset.ini"),
-                "PreprocessorDefinitions=MV_METHOD=1\r\nTechniques=" + list + "\r\nTechniqueSorting=" + list + "\r\n\r\n[BGE_FSR_RCAS.fx]\r\nSharpness=" +
+                "PreprocessorDefinitions=MV_METHOD=1,NGL_FOV=" + nglFov.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + "\r\nTechniques=" + list + "\r\nTechniqueSorting=" + list + "\r\n\r\n[BGE_FSR_RCAS.fx]\r\nSharpness=" +
                 stops.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + "\r\n");
             string ini = System.IO.Path.Combine(GameDir, "ReShade.ini");
             if (!File.Exists(ini))
