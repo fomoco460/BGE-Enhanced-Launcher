@@ -85,7 +85,7 @@ Not included: ray tracing. RTX Remix was tried, but it doesn't work well enough 
 
 - **Launcher:** run `build.bat`. It uses the C# compiler included with Windows, so there's nothing to install. Output: `build\BGELauncher.exe`.
 - **Hook (`d3d9.dll`):** needs a 32-bit MinGW-w64 toolchain, for example [llvm-mingw](https://github.com/mstorsjo/llvm-mingw). Put it on PATH and run `sh src/bgehook/build.sh`. Output: `build\d3d9.dll` and `build\eax.dll`.
-- **Release zip:** fill `third_party\` as listed below (the repo's `shaders\NGLighting-Configs.fxh` replaces the downloaded one: it lets the launcher pass in the game's field of view), then run `pwsh -File package.ps1 -Version 1.3.0` (PowerShell 7; Windows PowerShell 5 writes zip paths with backslashes).
+- **Release zip:** fill `third_party\` as listed below (the repo's `shaders\NGLighting-Configs.fxh` replaces the downloaded one: it lets the launcher pass in the game's field of view), then run `pwsh -File package.ps1 -Version 1.3.1` (PowerShell 7; Windows PowerShell 5 writes zip paths with backslashes).
 
 `third_party\` (not committed):
 ```
