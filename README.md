@@ -77,7 +77,7 @@ The first time you enable SMAA, MXAO or GI, the launcher asks to download the iM
 
 Tested with the **Ubisoft Connect** version on Windows 11 with an NVIDIA RTX 4060: 60 fps lock, borderless 1920×1080, the full ReShade stack in gameplay, and (since v1.3.0) the widened camera, no-bars and View height on a 3440×1440 ultrawide. The Steam and GOG versions are detected but **untested**. If they behave differently, please open an issue.
 
-Known issue: with **GI** on and **Water quality: High**, GI smears pale "broken glass" streaks across the water towards the horizon, most visibly at speed on the hovercraft and worst on ultrawide screens. GI builds its lighting up over several frames from estimated motion, and High water's moving reflections fool that estimate. The launcher warns you when both are on: use Low water quality, or turn GI off. (High water's own reflections are now lined up correctly on wide screens.)
+Known issue: with **GI** on and **Water quality: Medium or High**, GI smears pale "broken glass" streaks across the water towards the horizon, most visibly at speed on the hovercraft and worst on ultrawide screens. GI builds its lighting up over several frames from estimated motion, and the moving reflections on Medium and High water fool that estimate. The launcher warns you when both are on: use Low water quality, or turn GI off. (The water's own reflections are now lined up correctly on wide screens.)
 
 Not included: ray tracing. RTX Remix was tried, but it doesn't work well enough with this game yet to ship.
 

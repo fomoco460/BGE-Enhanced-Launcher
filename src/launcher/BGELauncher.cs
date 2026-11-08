@@ -533,20 +533,20 @@ namespace BGELauncher
             chkSmaa.Text = "SMAA anti-aliasing" + (vk ? "" : " (Vulkan only)");
             chkMxao.Text = "MXAO ambient occlusion" + (vk ? "" : " (Vulkan only)");
             chkGi.Text = "Global illumination - NiceGuy SSGI" + (vk ? "" : " (Vulkan only)");
-            // NiceGuy GI builds its lighting up over several frames using estimated motion. High water's moving
+            // NiceGuy GI builds its lighting up over several frames using estimated motion. Medium and High water's moving
             // reflections fool that estimate, so on the water it smears streaks towards the horizon.
-            bool giWater = vk && chkGi.Checked && cbWater.SelectedIndex == 2;
+            bool giWater = vk && chkGi.Checked && cbWater.SelectedIndex >= 1;
             var warn = Color.FromArgb(240, 190, 90); var note = Color.FromArgb(185, 196, 190);
             if (lblGiNote != null)
             {
                 lblGiNote.Text = giWater
-                    ? "GI streaks across the water with Water quality High. Use Low water, or turn GI off."
+                    ? "GI streaks across the water with Water quality Medium or High. Use Low water, or turn GI off."
                     : "SMAA, MXAO and GI need the Vulkan renderer. GI is screen-space (ray marched in the depth buffer).";
                 lblGiNote.ForeColor = giWater ? warn : note;
             }
             if (lblWaterGi != null)
             {
-                lblWaterGi.Text = giWater ? "With GI on (Enhancements tab), High water shows streaks." : "";
+                lblWaterGi.Text = giWater ? "With GI on (Enhancements tab), this water shows streaks." : "";
                 lblWaterGi.ForeColor = warn;
             }
             UpdateImmerseLabel();
