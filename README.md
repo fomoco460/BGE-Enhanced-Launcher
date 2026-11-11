@@ -70,7 +70,7 @@ The first time you enable SMAA, MXAO or GI, the launcher asks to download the iM
 
 - Copies its files into the game folder: `d3d9.dll`, `bgehook.ini`, ReShade, DXVK and the shaders.
 - Sets the **large address aware** flag in `BGE.exe` so the 32-bit game can use 4 GB of memory, which DXVK needs. The original exe is backed up in the launcher's `backup` folder. Ubisoft Connect may undo this when it verifies the game; the launcher re-applies it every time you press Play.
-- Registers ReShade as a Vulkan layer for your Windows user (`HKCU\SOFTWARE\Khronos\Vulkan\ImplicitLayers`). The layer only switches on inside BGE, through an environment variable the hook sets, so it doesn't affect other games.
+- Registers ReShade as a Vulkan layer named `VK_LAYER_reshade_bge` for your Windows user (`HKCU\SOFTWARE\Khronos\Vulkan\ImplicitLayers`). It has its own name so it doesn't clash with a ReShade you installed for another Vulkan game (the Vulkan loader keeps only one layer per name). The layer only switches on inside BGE, through an environment variable the hook sets, so it doesn't affect other games.
 - Writes the game's own video settings to its usual registry key.
 
 ## Status
@@ -85,7 +85,7 @@ Not included: ray tracing. RTX Remix was tried, but it doesn't work well enough 
 
 - **Launcher:** run `build.bat`. It uses the C# compiler included with Windows, so there's nothing to install. Output: `build\BGELauncher.exe`.
 - **Hook (`d3d9.dll`):** needs a 32-bit MinGW-w64 toolchain, for example [llvm-mingw](https://github.com/mstorsjo/llvm-mingw). Put it on PATH and run `sh src/bgehook/build.sh`. Output: `build\d3d9.dll` and `build\eax.dll`.
-- **Release zip:** fill `third_party\` as listed below (the repo's `shaders\NGLighting-Configs.fxh` replaces the downloaded one: it lets the launcher pass in the game's field of view), then run `pwsh -File package.ps1 -Version 1.3.1` (PowerShell 7; Windows PowerShell 5 writes zip paths with backslashes).
+- **Release zip:** fill `third_party\` as listed below (the repo's `shaders\NGLighting-Configs.fxh` replaces the downloaded one: it lets the launcher pass in the game's field of view), then run `pwsh -File package.ps1 -Version 1.3.2` (PowerShell 7; Windows PowerShell 5 writes zip paths with backslashes).
 
 `third_party\` (not committed):
 ```

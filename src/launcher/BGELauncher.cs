@@ -720,12 +720,20 @@ namespace BGELauncher
             string json = System.IO.Path.Combine(Payload, "ReShade32_BGE.json");
             using (var k = Registry.CurrentUser.CreateSubKey(@"SOFTWARE\Khronos\Vulkan\ImplicitLayers"))
             {
+                // drop registrations left by an older copy of this launcher in another folder (only our own manifest name)
+                foreach (string v in k.GetValueNames())
+                    if (v.EndsWith("ReShade32_BGE.json", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(v, json, StringComparison.OrdinalIgnoreCase))
+                        k.DeleteValue(v, false);
                 if (on)
                 {
                     // manifest points at the game's ReShade32.dll; rewrite in case the game moved
                     string dll = System.IO.Path.Combine(GameDir, "ReShade32.dll").Replace("\\", "\\\\");
                     string text = File.ReadAllText(json);
                     text = System.Text.RegularExpressions.Regex.Replace(text, "\"library_path\":\\s*\"[^\"]*\"", "\"library_path\": \"" + dll + "\"");
+                    // own layer name: the loader drops layers that share a name, and the ReShade installer uses VK_LAYER_reshade
+                    text = System.Text.RegularExpressions.Regex.Replace(text, "\"name\":\\s*\"VK_LAYER_reshade[^\"]*\"", "\"name\": \"VK_LAYER_reshade_bge\"");
+                    text = System.Text.RegularExpressions.Regex.Replace(text, "\"DISABLE_VK_LAYER_reshade[^\"]*\"", "\"DISABLE_VK_LAYER_reshade_bge\"");
                     File.WriteAllText(json, text);
                     k.SetValue(json, 0, RegistryValueKind.DWord);
                 }
